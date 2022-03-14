@@ -8,6 +8,7 @@
 
 #define SEQUENTIAL 1
 #define GREEDY 2
+#define EXTRA_MILEAGE 3
 
 typedef struct point_2d {
 	double x_coord;
@@ -106,6 +107,13 @@ int tsp_seq_sol(tsp_instance_t* instance);
  * @return 0 if no error was detected, a non-0 value otherwise
  */
 int tsp_gdy_sol(tsp_instance_t* instance);
+
+/**
+ * @brief generate a tour by applying the extra-mileage heuristic
+ * @param instance the tsp instance
+ * @return 0 if no error was detected, a non-0 value otherwise
+ */
+int tsp_exm_sol(tsp_instance_t* instance);
 
 /**
  * @brief plots the instance tour

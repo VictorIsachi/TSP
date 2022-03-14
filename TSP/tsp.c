@@ -31,7 +31,7 @@ int parse_command_line(const int argc, const char* argv[], tsp_instance_t* insta
 	instance->num_nodes = -1;
 	instance->random_seed = time(NULL);
 	instance->sol_procedure_flag = SEQUENTIAL;
-	instance->starting_index = -1;
+	instance->starting_index = 0;
 
 	int help = 0;
 	if (argc < 1) help = 1;
@@ -59,8 +59,8 @@ int parse_command_line(const int argc, const char* argv[], tsp_instance_t* insta
 		printf("-y_bound %d (used when generating a random instance)\n", instance->y_bound);
 		printf("-num_nodes %d (used when generating a random instance)\n", instance->num_nodes);
 		printf("-random_seed %d\n", instance->random_seed);
-		printf("-proc_flag %d (1: SEQUENTIAL; 2: GREEDY)\n", instance->sol_procedure_flag);
-		printf("-start_index %d (-1: random node; -2: best of all nodes)\n", instance->starting_index);
+		printf("-proc_flag %d (1: SEQUENTIAL; 2: GREEDY; 3: EXTRA_MILEAGE)\n", instance->sol_procedure_flag);
+		printf("-start_index %d (0: default; -1: random; -2: exhaustive)\n", instance->starting_index);
 		printf("\nenter -help or --help for help\n");
 		printf("----------------------------------------------------------------------------------------------\n\n");
 	}
@@ -506,6 +506,51 @@ int tsp_gdy_sol(tsp_instance_t* instance) {
 #endif
 			tsp_gdy_sol_si(i, instance);
 		}
+	}
+
+	return 0;
+}
+
+static void tsp_exm_sol_se(unsigned int start_index, unsigned int end_index, tsp_instance_t* instance) {
+
+}
+
+int tsp_exm_sol(tsp_instance_t* instance) {
+
+#if VERBOSE > 2
+	{ printf("Applying the extra-mileage heuristic...\n"); }
+#endif
+
+	assert(instance != NULL);
+
+	instance->best_sol = (unsigned int*)malloc(instance->num_nodes * sizeof(unsigned int));
+	if (instance->best_sol == NULL) { fprintf(stderr, "could not allocate memory for the best solution array\n"); return 1; }
+	instance->best_sol_cost = DBL_INFY;
+
+	int starting_index;
+	if (instance->starting_index >= 0)
+		starting_index = 0;
+	else if (instance->starting_index == -1) {
+		srand(instance->random_seed); for (int i = 0; i < MIN_RAND_RUNS + log(1 + instance->random_seed); i++) rand();
+		int i = (int)(((double)rand() / RAND_MAX) * (instance->num_nodes - 1) + 0.5);
+		int j = (int)(((double)rand() / RAND_MAX) * (instance->num_nodes - 1) + 0.5);
+		starting_index = i * instance->num_nodes + j + 1; //the +1 is needed to make starting index go from 1 to n^2 (instead of 0 to n^2 - 1), to avoid collision with the default
+	}
+	else
+		starting_index = -2;
+
+#if VERBOSE > 2
+	{ printf("Initial edge index: %d\n", starting_index); }
+#endif
+
+	if (starting_index == -2) {
+		
+	}
+	else if (starting_index == 0) {
+
+	}
+	else {
+
 	}
 
 	return 0;
