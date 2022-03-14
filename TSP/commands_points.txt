@@ -1,0 +1,7 @@
+set style line 1 \
+   linecolor rgb '#22FF99' \
+   linetype 1 linewidth 2 \
+   pointtype 7 pointsize 2
+
+plot "points.dat" with linespoints linestyle 1
+pause mouse close
