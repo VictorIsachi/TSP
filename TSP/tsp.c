@@ -364,6 +364,8 @@ int tsp_opt(tsp_instance_t* instance) {
 		return tsp_seq_sol(instance);
 	case GREEDY:
 		return tsp_gdy_sol(instance);
+	case EXTRA_MILEAGE:
+		return tsp_exm_sol(instance);
 	default:
 		return 1;
 	}
@@ -544,13 +546,40 @@ int tsp_exm_sol(tsp_instance_t* instance) {
 #endif
 
 	if (starting_index == -2) {
-		
+		for (int i = 0; i < instance->num_nodes - 1; i++) {
+			for (int j = i + 1; j < instance->num_nodes; j++) {
+#if VERBOSE > 3
+				{ printf("Starting pair (%d, %d) [(%f, %f), (%f, %f)]\n", i, j, instance->nodes[i].x_coord, instance->nodes[i].y_coord,
+					instance->nodes[j].x_coord, instance->nodes[j].y_coord); }
+#endif
+				tsp_exm_sol_se(i, j, instance);
+			}
+		}
 	}
 	else if (starting_index == 0) {
-
+		int start_max = 0, end_max = 0;
+		for (int i = 0; i < instance->num_nodes - 1; i++) {
+			for (int j = i + 1; j < instance->nodes; j++) {
+				if (lookup_cost(i, j, instance) > lookup_cost(start_max, end_max, instance)) {
+					start_max = i;
+					end_max = j;
+				}
+			}
+		}
+#if VERBOSE > 3
+		{ printf("Starting pair (%d, %d) [(%f, %f), (%f, %f)]\n", start_max, end_max, instance->nodes[start_max].x_coord, instance->nodes[start_max].y_coord,
+			instance->nodes[end_max].x_coord, instance->nodes[end_max].y_coord); }
+#endif
+		tsp_exm_sol_se(start_max, end_max, instance);
 	}
 	else {
-
+		int j = (starting_index - 1) % instance->num_nodes;
+		int i = (starting_index - 1 - j) / instance->num_nodes;
+#if VERBOSE > 3
+		{ printf("Starting pair (%d, %d) [(%f, %f), (%f, %f)]\n", i, j, instance->nodes[i].x_coord, instance->nodes[i].y_coord, 
+			instance->nodes[j].x_coord, instance->nodes[j].y_coord); }
+#endif
+		tsp_exm_sol_se(i, j, instance);
 	}
 
 	return 0;
