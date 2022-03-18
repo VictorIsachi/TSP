@@ -32,7 +32,7 @@ int parse_command_line(const int argc, const char* argv[], tsp_instance_t* insta
 	instance->random_seed = time(NULL);
 	instance->sol_procedure_flag = SEQUENTIAL;
 	instance->starting_index = 0;
-	instance->prob_ign_opt = 0;
+	instance->prob_ign_opt = 0.0;
 
 	int help = 0;
 	if (argc < 1) help = 1;
@@ -547,6 +547,8 @@ int tsp_gdy_sol(tsp_instance_t* instance) {
 
 static void tsp_exm_sol_se(unsigned int start_index, unsigned int end_index, tsp_instance_t* instance) {
 
+	srand(instance->random_seed); for (int i = 0; i < MIN_RAND_RUNS + log(1 + instance->random_seed); i++) rand();
+
 #if VERBOSE > 2
 	{ printf("Applying the extra-mileage method with starting pair (%d, %d)...\n", start_index, end_index); }
 #endif
@@ -582,14 +584,14 @@ static void tsp_exm_sol_se(unsigned int start_index, unsigned int end_index, tsp
 	{ printf("successor after initialization: [ "); for (int i = 0; i < instance->num_nodes; i++) printf("(%d, %d) ", i, successor[i]); printf("]\n"); }
 #endif
 
-	unsigned int node2add_index;	//index of the nodes2visit (not the node index)
-	unsigned int starting_node;
-	double min_cost;
 	while (num_nodes2visit > 0) {
-		node2add_index = 0;
-		starting_node = start_index;
-		min_cost = lookup_cost(starting_node, nodes2visit[node2add_index], instance) + lookup_cost(nodes2visit[node2add_index], successor[starting_node], instance) - \
-			lookup_cost(starting_node, successor[starting_node], instance);
+		unsigned int node2add_index_1 = 0;	//index of the nodes2visit (not the node index)
+		unsigned int node2add_index_2 = node2add_index_1;	//index of the second best node found
+		unsigned int starting_node_1 = start_index;
+		unsigned int starting_node_2 = starting_node_1;
+		double min_cost_1 = lookup_cost(starting_node_1, nodes2visit[node2add_index_1], instance) + lookup_cost(nodes2visit[node2add_index_1], successor[starting_node_1], instance) - \
+			lookup_cost(starting_node_1, successor[starting_node_1], instance);
+		double min_cost_2 = min_cost_1;
 
 #if VERBOSE > 8
 		{ printf("Number of nodes not in the tour: %d\n", num_nodes2visit); }
@@ -598,17 +600,36 @@ static void tsp_exm_sol_se(unsigned int start_index, unsigned int end_index, tsp
 		for (int i = 0; i < instance->num_nodes; i++) if (successor[i] != -1) {	//iterate over the already visited nodes
 			for (int j = 1; j < num_nodes2visit; j++) {	//iterate over the unseen nodes
 				if (lookup_cost(i, nodes2visit[j], instance) + lookup_cost(nodes2visit[j], successor[i], instance) - \
-					lookup_cost(i, successor[i], instance) < min_cost) {
-					node2add_index = j;
-					starting_node = i;
-					min_cost = lookup_cost(starting_node, nodes2visit[node2add_index], instance) + lookup_cost(nodes2visit[node2add_index], successor[starting_node], instance) - \
-						lookup_cost(starting_node, successor[starting_node], instance);
+					lookup_cost(i, successor[i], instance) < min_cost_2) {
+					if (lookup_cost(i, nodes2visit[j], instance) + lookup_cost(nodes2visit[j], successor[i], instance) - \
+						lookup_cost(i, successor[i], instance) < min_cost_1) {	//best node
+						node2add_index_2 = node2add_index_1;
+						starting_node_2 = starting_node_1;
+						min_cost_2 = min_cost_1;
+						node2add_index_1 = j;
+						starting_node_1 = i;
+						min_cost_1 = lookup_cost(starting_node_1, nodes2visit[node2add_index_1], instance) + lookup_cost(nodes2visit[node2add_index_1], successor[starting_node_1], instance) - \
+							lookup_cost(starting_node_1, successor[starting_node_1], instance);
+					}
+					else {	//second best node
+						node2add_index_2 = j;
+						starting_node_2 = i;
+						min_cost_2 = lookup_cost(starting_node_2, nodes2visit[node2add_index_2], instance) + lookup_cost(nodes2visit[node2add_index_2], successor[starting_node_2], instance) - \
+							lookup_cost(starting_node_2, successor[starting_node_2], instance);
+					}
 				}
 			}
 		}
-		successor[nodes2visit[node2add_index]] = successor[starting_node];
-		successor[starting_node] = nodes2visit[node2add_index];
-		nodes2visit[node2add_index] = nodes2visit[--num_nodes2visit];
+		if (((double)rand() / (RAND_MAX + 1)) < instance->prob_ign_opt) {	//second best
+			successor[nodes2visit[node2add_index_2]] = successor[starting_node_2];
+			successor[starting_node_2] = nodes2visit[node2add_index_2];
+			nodes2visit[node2add_index_2] = nodes2visit[--num_nodes2visit];
+		}
+		else {	//best
+			successor[nodes2visit[node2add_index_1]] = successor[starting_node_1];
+			successor[starting_node_1] = nodes2visit[node2add_index_1];
+			nodes2visit[node2add_index_1] = nodes2visit[--num_nodes2visit];
+		}
 
 #if VERBOSE > 8
 		{ printf("Substituted (%f, %f) -> (%f, %f) with (%f, %f) -> (%f, %f) -> (%f, %f)\n", instance->nodes[starting_node].x_coord, instance->nodes[starting_node].y_coord,
