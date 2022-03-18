@@ -8,6 +8,10 @@
 
 #define SEQUENTIAL 1
 #define GREEDY 2
+#define EXTRA_MILEAGE 3
+
+#define NO_REF 1
+#define TWO_OPT 2
 
 typedef struct point_2d {
 	double x_coord;
@@ -27,6 +31,8 @@ typedef struct tsp_instance {
 	unsigned int random_seed;
 	unsigned int sol_procedure_flag;
 	int starting_index;
+	double prob_ign_opt;
+	unsigned int refine_flag;
 
 	//instance local data
 	unsigned int* best_sol;	//indices of the nodes[] in the tour order, it might be better to put this variable into a critical region to guarantee atomicity
@@ -108,10 +114,31 @@ int tsp_seq_sol(tsp_instance_t* instance);
 int tsp_gdy_sol(tsp_instance_t* instance);
 
 /**
+ * @brief generate a tour by applying the extra-mileage heuristic
+ * @param instance the tsp instance
+ * @return 0 if no error was detected, a non-0 value otherwise
+ */
+int tsp_exm_sol(tsp_instance_t* instance);
+
+/**
  * @brief plots the instance tour
  * @param instance the tsp instance
  * @return 0 if no error was detected, a non-0 value otherwise
  */
 int plot_tour(tsp_instance_t* instance);
+
+/**
+ * @brief given an instance of tsp with an already present solution, refines said solution using the appropriate method defined by the refine_flag
+ * @param instance the instance whose solution will be refined
+ * @return 0 if no error was detected, a non-0 value otherwise
+ */
+int ref_sol(tsp_instance_t* instance);
+
+/**
+ * @brief refine the tsp solution by using the 2-opt move
+ * @param instance the tsp instance
+ * @return 0 if no error was detected, a non-0 value otherwise
+ */
+int two_opt_ref(tsp_instance_t* instance);
 
 #endif //TSP_H
