@@ -11,5 +11,6 @@
 -deterministic greedy heuristic
 -deterministic extra-mileage heuristic
 -greedy heuristic with GRASP
+-extra-mileage heuristic with GRASP
 -the 2-opt refinement procedure
 ```
