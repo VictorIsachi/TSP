@@ -28,6 +28,7 @@ typedef struct tsp_instance {
 	unsigned int random_seed;
 	unsigned int sol_procedure_flag;
 	int starting_index;
+	double prob_ign_opt;
 
 	//instance local data
 	unsigned int* best_sol;	//indices of the nodes[] in the tour order, it might be better to put this variable into a critical region to guarantee atomicity

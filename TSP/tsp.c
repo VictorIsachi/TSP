@@ -32,6 +32,7 @@ int parse_command_line(const int argc, const char* argv[], tsp_instance_t* insta
 	instance->random_seed = time(NULL);
 	instance->sol_procedure_flag = SEQUENTIAL;
 	instance->starting_index = 0;
+	instance->prob_ign_opt = 0;
 
 	int help = 0;
 	if (argc < 1) help = 1;
@@ -45,6 +46,7 @@ int parse_command_line(const int argc, const char* argv[], tsp_instance_t* insta
 		if (strcmp(argv[i], "-random_seed") == 0) { instance->random_seed = atoi(argv[++i]); continue; }				// random seed
 		if (strcmp(argv[i], "-proc_flag") == 0) { instance->sol_procedure_flag = atoi(argv[++i]); continue; }			// flag indicating the type of sol. procedure
 		if (strcmp(argv[i], "-start_index") == 0) { instance->starting_index = atoi(argv[++i]); continue; }				// index of the initial node
+		if (strcmp(argv[i], "-prob_ign_opt") == 0) { instance->prob_ign_opt = atof(argv[++i]); continue; }				// prob. to go to the 2nd best node
 		if (strcmp(argv[i], "-help") == 0) { help = 1; continue; } 													    // help
 		if (strcmp(argv[i], "--help") == 0) { help = 1; continue; } 													// help
 		help = 1;
@@ -61,6 +63,7 @@ int parse_command_line(const int argc, const char* argv[], tsp_instance_t* insta
 		printf("-random_seed %d\n", instance->random_seed);
 		printf("-proc_flag %d (1: SEQUENTIAL; 2: GREEDY; 3: EXTRA_MILEAGE)\n", instance->sol_procedure_flag);
 		printf("-start_index %d (0: default; -1: random; -2: exhaustive)\n", instance->starting_index);
+		printf("-prob_ign_opt %f (probability of selecting the second best node at each iteration)\n", instance->prob_ign_opt);
 		printf("\nenter -help or --help for help\n");
 		printf("----------------------------------------------------------------------------------------------\n\n");
 	}
@@ -393,6 +396,8 @@ int tsp_seq_sol(tsp_instance_t* instance) {
 
 static void tsp_gdy_sol_si(unsigned int starting_index, tsp_instance_t* instance) {
 
+	srand(instance->random_seed); for (int i = 0; i < MIN_RAND_RUNS + log(1 + instance->random_seed); i++) rand();
+
 #if VERBOSE > 2
 	{ printf("Applying the greedy method with initial idex %d...\n", starting_index); }
 #endif
@@ -401,12 +406,15 @@ static void tsp_gdy_sol_si(unsigned int starting_index, tsp_instance_t* instance
 	for (unsigned int i = 0; i < instance->num_nodes; i++) {
 		nodes2visit[i] = i;
 	}
+
 #if VERBOSE > 8
 	{ printf("nodes2visit: [ "); for (int i = 0; i < instance->num_nodes; i++) printf("(%d, %d) ", i, nodes2visit[i]); printf("]\n"); }
 #endif
+
 	unsigned int current_node_index = starting_index;	//node under examination
 	unsigned int current_tour_node_index = 0;	//node position in the tour
 	swap_uint_array(current_node_index, current_tour_node_index, nodes2visit);	//put the starting node index at the beginning of the tour
+
 #if VERBOSE > 9
 	{ printf("Swaped %d with %d. Now node2visit[%d] = %d and node2visit[%d] = %d\n", current_node_index, current_tour_node_index,
 		current_node_index, nodes2visit[current_node_index], current_tour_node_index, nodes2visit[current_tour_node_index]); }
@@ -414,25 +422,42 @@ static void tsp_gdy_sol_si(unsigned int starting_index, tsp_instance_t* instance
 #if VERBOSE > 8
 	{ printf("nodes2visit: [ "); for (int i = 0; i < instance->num_nodes; i++) printf("(%d, %d) ", i, nodes2visit[i]); printf("]\n"); }
 #endif
+
 	current_node_index = current_tour_node_index;	//update the current node index
-	unsigned int next_node_index = ++current_tour_node_index;	//indicate that we are looking for the next tour position
+	unsigned int next_node_index_1 = ++current_tour_node_index;	//indicate that we are looking for the next tour position
+	unsigned int next_node_index_2 = next_node_index_1;	//index of the second best choice
 
 	for (int i = current_tour_node_index; i < instance->num_nodes; i++) {	//iterate over the tour positions
+
 #if VERBOSE > 8
 		{ printf("Looking for element %d of the tour\n", current_tour_node_index); }
 #endif
-		double nearest_neighbor_dist = lookup_cost(nodes2visit[current_node_index], nodes2visit[next_node_index], instance);
-		for (int j = current_tour_node_index + 1; j < instance->num_nodes; j++) {	//look for the node closest to the current node under exam.
-			if (lookup_cost(nodes2visit[current_node_index], nodes2visit[j], instance) < nearest_neighbor_dist) {
-				next_node_index = j;
-				nearest_neighbor_dist = lookup_cost(nodes2visit[current_node_index], nodes2visit[next_node_index], instance);
+
+		double nearest_neighbor_dist_1 = lookup_cost(nodes2visit[current_node_index], nodes2visit[next_node_index_1], instance);
+		double nearest_neighbor_dist_2 = nearest_neighbor_dist_1;
+		for (int j = current_tour_node_index + 1; j < instance->num_nodes; j++) {	//look for the nodes closest to the current node under exam.
+			if (lookup_cost(nodes2visit[current_node_index], nodes2visit[j], instance) < nearest_neighbor_dist_2) {
+				if (lookup_cost(nodes2visit[current_node_index], nodes2visit[j], instance) < nearest_neighbor_dist_1) {	//best node
+					next_node_index_2 = next_node_index_1;
+					nearest_neighbor_dist_2 = nearest_neighbor_dist_1;
+					next_node_index_1 = j;
+					nearest_neighbor_dist_1 = lookup_cost(nodes2visit[current_node_index], nodes2visit[next_node_index_1], instance);
+				}
+				else {	//second best node
+					next_node_index_2 = j;
+					nearest_neighbor_dist_2 = lookup_cost(nodes2visit[current_node_index], nodes2visit[next_node_index_2], instance);
+				}
 			}
 		}
+
 #if VERBOSE > 8
-		{ printf("Nearest neighbor %d of %d at distance %f\n", nodes2visit[next_node_index], nodes2visit[current_node_index], nearest_neighbor_dist); }
+		{ printf("Nearest neighbors %d, %d of %d at distance %f, %f\n", nodes2visit[next_node_index_1], nodes2visit[next_node_index_2], nodes2visit[current_node_index], 
+			nearest_neighbor_dist_1, nearest_neighbor_dist_2); }
 #endif
-		current_node_index = next_node_index;
+
+		current_node_index = ((double)rand() / (RAND_MAX + 1)) < instance->prob_ign_opt ? next_node_index_2 : next_node_index_1;	//choose best or second best
 		swap_uint_array(current_node_index, current_tour_node_index, nodes2visit);
+
 #if VERBOSE > 9
 		{ printf("Swaped %d with %d. Now node2visit[%d] = %d and node2visit[%d] = %d\n", current_node_index, current_tour_node_index,
 			current_node_index, nodes2visit[current_node_index], current_tour_node_index, nodes2visit[current_tour_node_index]); }
@@ -441,31 +466,38 @@ static void tsp_gdy_sol_si(unsigned int starting_index, tsp_instance_t* instance
 		{ printf("nodes2visit: [ "); for (int i = 0; i < instance->num_nodes; i++) printf("(%d, %d) ", i, nodes2visit[i]); printf("]\n"); }
 #endif
 		current_node_index = current_tour_node_index;
-		next_node_index = ++current_tour_node_index;
+		next_node_index_1 = ++current_tour_node_index;
+		next_node_index_2 = next_node_index_1;
 
 	}
+
 	double current_cost = 0.0;
 	for (int i = 0; i < instance->num_nodes; i++) {
 		current_cost += lookup_cost(nodes2visit[i], nodes2visit[(i + 1) % instance->num_nodes], instance);
+
 #if VERBOSE > 8
 		{ printf("Cost of edge [(%f, %f), (%f, %f)]: %f; total path cost: %f\n", instance->nodes[nodes2visit[i]].x_coord, instance->nodes[nodes2visit[i]].y_coord, 
 			instance->nodes[nodes2visit[(i + 1) % instance->num_nodes]].x_coord, instance->nodes[nodes2visit[(i + 1) % instance->num_nodes]].y_coord, 
 			lookup_cost(nodes2visit[i], nodes2visit[(i + 1) % instance->num_nodes], instance), current_cost); }
 #endif
+
 	}
 #if VERBOSE > 4
 	{ printf("Cost: %f\n", current_cost); }
 #endif
+
 	if (current_cost < instance->best_sol_cost) {
 		instance->best_sol_cost = current_cost;
 		for (int i = 0; i < instance->num_nodes; i++) {
 			instance->best_sol[i] = nodes2visit[i];
+
 #if VERBOSE > 2
 			{ printf("Element of index %d of the tour is the node of index %d [%f, %f]\n", i, instance->best_sol[i], instance->nodes[instance->best_sol[i]].x_coord,
 				instance->nodes[instance->best_sol[i]].y_coord); }
 #endif
 		}
 	}
+
 	free(nodes2visit);
 }
 
@@ -515,6 +547,109 @@ int tsp_gdy_sol(tsp_instance_t* instance) {
 
 static void tsp_exm_sol_se(unsigned int start_index, unsigned int end_index, tsp_instance_t* instance) {
 
+#if VERBOSE > 2
+	{ printf("Applying the extra-mileage method with starting pair (%d, %d)...\n", start_index, end_index); }
+#endif
+
+	unsigned int num_nodes2visit = instance->num_nodes;
+	unsigned int* nodes2visit = (unsigned int*)malloc(num_nodes2visit * sizeof(unsigned int));
+	for (unsigned int i = 0; i < num_nodes2visit; i++) {
+		nodes2visit[i] = i;
+	}
+
+#if VERBOSE > 8
+	{ printf("nodes2visit: [ "); for (int i = 0; i < num_nodes2visit; i++) printf("(%d, %d) ", i, nodes2visit[i]); printf("]\n"); }
+#endif
+
+	int* successor = (int*)malloc(instance->num_nodes * sizeof(int));
+	for (int i = 0; i < instance->num_nodes; i++) {
+		successor[i] = -1;	//-1 indicates no successor
+	}
+
+#if VERBOSE > 8
+	{ printf("successor: [ "); for (int i = 0; i < instance->num_nodes; i++) printf("(%d, %d) ", i, successor[i]); printf("]\n"); }
+#endif
+
+	successor[start_index] = end_index;
+	successor[end_index] = start_index;
+	nodes2visit[end_index] = nodes2visit[--num_nodes2visit];
+	nodes2visit[start_index] = nodes2visit[--num_nodes2visit];
+
+#if VERBOSE > 8
+	{ printf("nodes2visit after initialization: [ "); for (int i = 0; i < num_nodes2visit; i++) printf("(%d, %d) ", i, nodes2visit[i]); printf("]\n"); }
+#endif
+#if VERBOSE > 8
+	{ printf("successor after initialization: [ "); for (int i = 0; i < instance->num_nodes; i++) printf("(%d, %d) ", i, successor[i]); printf("]\n"); }
+#endif
+
+	unsigned int node2add_index;	//index of the nodes2visit (not the node index)
+	unsigned int starting_node;
+	double min_cost;
+	while (num_nodes2visit > 0) {
+		node2add_index = 0;
+		starting_node = start_index;
+		min_cost = lookup_cost(starting_node, nodes2visit[node2add_index], instance) + lookup_cost(nodes2visit[node2add_index], successor[starting_node], instance) - \
+			lookup_cost(starting_node, successor[starting_node], instance);
+
+#if VERBOSE > 8
+		{ printf("Number of nodes not in the tour: %d\n", num_nodes2visit); }
+#endif
+
+		for (int i = 0; i < instance->num_nodes; i++) if (successor[i] != -1) {	//iterate over the already visited nodes
+			for (int j = 1; j < num_nodes2visit; j++) {	//iterate over the unseen nodes
+				if (lookup_cost(i, nodes2visit[j], instance) + lookup_cost(nodes2visit[j], successor[i], instance) - \
+					lookup_cost(i, successor[i], instance) < min_cost) {
+					node2add_index = j;
+					starting_node = i;
+					min_cost = lookup_cost(starting_node, nodes2visit[node2add_index], instance) + lookup_cost(nodes2visit[node2add_index], successor[starting_node], instance) - \
+						lookup_cost(starting_node, successor[starting_node], instance);
+				}
+			}
+		}
+		successor[nodes2visit[node2add_index]] = successor[starting_node];
+		successor[starting_node] = nodes2visit[node2add_index];
+		nodes2visit[node2add_index] = nodes2visit[--num_nodes2visit];
+
+#if VERBOSE > 8
+		{ printf("Substituted (%f, %f) -> (%f, %f) with (%f, %f) -> (%f, %f) -> (%f, %f)\n", instance->nodes[starting_node].x_coord, instance->nodes[starting_node].y_coord,
+			instance->nodes[successor[successor[starting_node]]].x_coord, instance->nodes[successor[successor[starting_node]]].y_coord, instance->nodes[starting_node].x_coord,
+			instance->nodes[starting_node].y_coord, instance->nodes[successor[starting_node]].x_coord, instance->nodes[successor[starting_node]].y_coord,
+			instance->nodes[successor[successor[starting_node]]].x_coord, instance->nodes[successor[successor[starting_node]]].y_coord); }
+#endif
+	}
+
+	double current_cost = 0.0;
+	unsigned int current_node = start_index;
+	for (int i = 0; i < instance->num_nodes; i++) {
+		current_cost += lookup_cost(current_node, successor[current_node], instance);
+
+#if VERBOSE > 8
+		{ printf("Cost of edge [(%f, %f), (%f, %f)]: %f; total path cost: %f\n", instance->nodes[current_node].x_coord, instance->nodes[current_node].y_coord,
+			instance->nodes[successor[current_node]].x_coord, instance->nodes[successor[current_node]].y_coord, lookup_cost(current_node, successor[current_node], instance), 
+			current_cost); }
+#endif
+		current_node = successor[current_node];
+	}
+
+#if VERBOSE > 4
+	{ printf("Cost: %f\n", current_cost); }
+#endif
+
+	if (current_cost < instance->best_sol_cost) {
+		instance->best_sol_cost = current_cost;
+		for (int i = 0; i < instance->num_nodes; i++) {
+			instance->best_sol[i] = current_node;
+			current_node = successor[current_node];
+
+#if VERBOSE > 2
+			{ printf("Element of index %d of the tour is the node of index %d [%f, %f]\n", i, instance->best_sol[i], instance->nodes[instance->best_sol[i]].x_coord,
+				instance->nodes[instance->best_sol[i]].y_coord); }
+#endif
+		}
+	}
+
+	free(nodes2visit);
+	free(successor);
 }
 
 int tsp_exm_sol(tsp_instance_t* instance) {
@@ -559,7 +694,7 @@ int tsp_exm_sol(tsp_instance_t* instance) {
 	else if (starting_index == 0) {
 		int start_max = 0, end_max = 0;
 		for (int i = 0; i < instance->num_nodes - 1; i++) {
-			for (int j = i + 1; j < instance->nodes; j++) {
+			for (int j = i + 1; j < instance->num_nodes; j++) {
 				if (lookup_cost(i, j, instance) > lookup_cost(start_max, end_max, instance)) {
 					start_max = i;
 					end_max = j;
