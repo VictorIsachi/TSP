@@ -9,4 +9,6 @@
 -sequential tour method function
 -tour GNUPLOT plotter
 -deterministic greedy heuristic
+-deterministic extra-mileage heuristic
+-greedy heuristic with GRASP
 ```
