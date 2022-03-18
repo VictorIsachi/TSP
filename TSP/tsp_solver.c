@@ -25,6 +25,9 @@ int main(int argc, char const* argv[]) {
 	if (tsp_opt(&instance)) { free_tsp_instance(&instance); fprintf(stderr, "Optimization algorithm failed\n"); exit(1); }
 	printf("Solution cost: %f\n", instance.best_sol_cost);
 	if (plot_tour(&instance)) { free_tsp_instance(&instance); fprintf(stderr, "Tour plotting failed\n"); exit(1); }
+	if (ref_sol(&instance)) { free_tsp_instance(&instance); fprintf(stderr, "Refinement algorithm failed\n"); exit(1); }
+	printf("Solution cost: %f\n", instance.best_sol_cost);
+	if (plot_tour(&instance)) { free_tsp_instance(&instance); fprintf(stderr, "Tour plotting failed\n"); exit(1); }
 
 	//TESTS
 //	printf("Distance between node 99 and 98: %f\n", lookup_cost(99, 98, &instance));
