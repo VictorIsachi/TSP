@@ -8,13 +8,10 @@
 #include <math.h>
 #include <stdbool.h>
 
-#define MIN_RAND_RUNS 1000
 #define INSTANCE_POINTS_PLOT "points.dat"
 #define INSTANCE_TOUR_PLOT "tour.dat"
 #define GNUPLOT_COMMAND_POINTS "gnuplot commands_points.txt"
 #define GNUPLOT_COMMAND_TOUR "gnuplot commands_tour.txt"
-
-#define DIST_INDEX(i, j, n) ((j) - 1 + (i) * ((n) - 1) - ((i) * ((i) + 1)) / 2)
 
 int parse_command_line(const int argc, const char* argv[], tsp_instance_t* instance) {
 
@@ -71,6 +68,12 @@ int parse_command_line(const int argc, const char* argv[], tsp_instance_t* insta
 		printf("\nenter -help or --help for help\n");
 		printf("----------------------------------------------------------------------------------------------\n\n");
 	}
+
+	//finalize parameter initialization
+	instance->best_sol = NULL;
+	instance->best_sol_cost = DBL_INFY;
+	instance->costs = NULL;
+	instance->time_left = instance->time_limit;
 
 	return help;
 }
@@ -272,7 +275,7 @@ int plot_points(tsp_instance_t* instance) {
 	return 0;
 }
 
-static double dist(int i, int j, tsp_instance_t* instance) {
+double dist(int i, int j, tsp_instance_t* instance) {
 
 	assert(instance != NULL);
 	assert(0 <= i && i <= instance->num_nodes);
@@ -307,8 +310,12 @@ int precompute_costs(tsp_instance_t* instance) {
 		printf("Allocateing %d-length array (%dbytes) for the cost look-up table\n", num_costs, num_costs * sizeof(double));
 	}
 #endif
-	instance->costs = (double*)malloc(num_costs * sizeof(double));
-	if (instance->costs == NULL) { fprintf(stderr, "could not allocate memory for the cost look-up table\n"); return 1; }
+
+	if (instance->costs == NULL) {
+		instance->costs = (double*)malloc(num_costs * sizeof(double));
+		if (instance->costs == NULL) { fprintf(stderr, "could not allocate memory for the cost look-up table\n"); return 1; }
+	}
+	else { fprintf(stderr, "already precomputed the cost look-up table\n"); return 1; }
 
 	for (int i = 0; i < instance->num_nodes - 1; i++) {
 #pragma omp parallel for num_threads(OMP_NUM_THREADS)
@@ -384,8 +391,10 @@ int tsp_seq_sol(tsp_instance_t* instance) {
 	{ printf("Applying the sequential method...\n"); }
 #endif
 
-	instance->best_sol = (unsigned int*)malloc(instance->num_nodes * sizeof(unsigned int));
-	if (instance->best_sol == NULL) { fprintf(stderr, "could not allocate memory for the best solution array\n"); return 1; }
+	if (instance->best_sol == NULL) {
+		instance->best_sol = (unsigned int*)malloc(instance->num_nodes * sizeof(unsigned int));
+		if (instance->best_sol == NULL) { fprintf(stderr, "could not allocate memory for the best solution array\n"); return 1; }
+	}
 	instance->best_sol_cost = 0.0;
 
 	for (int i = 0; i < instance->num_nodes; i++) {
@@ -509,8 +518,10 @@ int tsp_gdy_sol(tsp_instance_t* instance) {
 	{ printf("Applying the greedy heuristic...\n"); }
 #endif
 
-	instance->best_sol = (unsigned int*)malloc(instance->num_nodes * sizeof(unsigned int));
-	if (instance->best_sol == NULL) { fprintf(stderr, "could not allocate memory for the best solution array\n"); return 1; }
+	if (instance->best_sol == NULL) {
+		instance->best_sol = (unsigned int*)malloc(instance->num_nodes * sizeof(unsigned int));
+		if (instance->best_sol == NULL) { fprintf(stderr, "could not allocate memory for the best solution array\n"); return 1; }
+	}
 	instance->best_sol_cost = DBL_INFY;
 
 	int starting_index;
@@ -686,8 +697,10 @@ int tsp_exm_sol(tsp_instance_t* instance) {
 	{ printf("Applying the extra-mileage heuristic...\n"); }
 #endif
 
-	instance->best_sol = (unsigned int*)malloc(instance->num_nodes * sizeof(unsigned int));
-	if (instance->best_sol == NULL) { fprintf(stderr, "could not allocate memory for the best solution array\n"); return 1; }
+	if (instance->best_sol == NULL) {
+		instance->best_sol = (unsigned int*)malloc(instance->num_nodes * sizeof(unsigned int));
+		if (instance->best_sol == NULL) { fprintf(stderr, "could not allocate memory for the best solution array\n"); return 1; }
+	}
 	instance->best_sol_cost = DBL_INFY;
 
 	int starting_index;
@@ -771,48 +784,38 @@ int two_opt_ref(tsp_instance_t* instance) {
 	{ printf("Applying the 2-opt move...\n"); }
 #endif
 
-	int* successor = (int*)malloc(instance->num_nodes * sizeof(int));
-	for (int i = 0; i < instance->num_nodes; i++) {
-		successor[instance->best_sol[i]] = instance->best_sol[(i + 1) % instance->num_nodes];
-	}
-
-#if VERBOSE > 8
-	{ printf("successor: [ "); for (int i = 0; i < instance->num_nodes; i++) printf("(%d, %d) ", i, successor[i]); printf("]\n"); }
-#endif
-
-	double execution_time = 0.0;
 	bool done = false;
-	while (!done && execution_time < instance->time_limit) {
+	while (!done && instance->time_left > 0) {
 		double start_time = seconds();
 		unsigned int cross_node_a_index = 0;
 		unsigned int cross_node_b_index = 2;
 		double move_cost = (lookup_cost(instance->best_sol[cross_node_a_index], instance->best_sol[cross_node_b_index], instance) + \
-			lookup_cost(successor[instance->best_sol[cross_node_a_index]], successor[instance->best_sol[cross_node_b_index]], instance)) - \
-			(lookup_cost(instance->best_sol[cross_node_a_index], successor[instance->best_sol[cross_node_a_index]], instance) + \
-				lookup_cost(instance->best_sol[cross_node_b_index], successor[instance->best_sol[cross_node_b_index]], instance));
+			lookup_cost(instance->best_sol[(cross_node_a_index + 1) % instance->num_nodes], instance->best_sol[(cross_node_b_index + 1) % instance->num_nodes], instance)) - \
+			(lookup_cost(instance->best_sol[cross_node_a_index], instance->best_sol[(cross_node_a_index + 1) % instance->num_nodes], instance) + \
+				lookup_cost(instance->best_sol[cross_node_b_index], instance->best_sol[(cross_node_b_index + 1) % instance->num_nodes], instance));
 		for (int i = 0; i < instance->num_nodes - 2; i++) {
 			for (int j = i + 2; j < instance->num_nodes; j++) {
 				if ((lookup_cost(instance->best_sol[i], instance->best_sol[j], instance) + \
-					lookup_cost(successor[instance->best_sol[i]], successor[instance->best_sol[j]], instance)) - \
-					(lookup_cost(instance->best_sol[i], successor[instance->best_sol[i]], instance) + \
-						lookup_cost(instance->best_sol[j], successor[instance->best_sol[j]], instance)) < move_cost) {
+					lookup_cost(instance->best_sol[(i + 1) % instance->num_nodes], instance->best_sol[(j + 1) % instance->num_nodes], instance)) - \
+					(lookup_cost(instance->best_sol[i], instance->best_sol[(i + 1) % instance->num_nodes], instance) + \
+						lookup_cost(instance->best_sol[j], instance->best_sol[(j + 1) % instance->num_nodes], instance)) < move_cost) {
 					cross_node_a_index = i;
 					cross_node_b_index = j;
 					move_cost = (lookup_cost(instance->best_sol[cross_node_a_index], instance->best_sol[cross_node_b_index], instance) + \
-						lookup_cost(successor[instance->best_sol[cross_node_a_index]], successor[instance->best_sol[cross_node_b_index]], instance)) - \
-						(lookup_cost(instance->best_sol[cross_node_a_index], successor[instance->best_sol[cross_node_a_index]], instance) + \
-							lookup_cost(instance->best_sol[cross_node_b_index], successor[instance->best_sol[cross_node_b_index]], instance));
+						lookup_cost(instance->best_sol[(cross_node_a_index + 1) % instance->num_nodes], instance->best_sol[(cross_node_b_index + 1) % instance->num_nodes], instance)) - \
+						(lookup_cost(instance->best_sol[cross_node_a_index], instance->best_sol[(cross_node_a_index + 1) % instance->num_nodes], instance) + \
+							lookup_cost(instance->best_sol[cross_node_b_index], instance->best_sol[(cross_node_b_index + 1) % instance->num_nodes], instance));
 
 #if VERBOSE > 8
 					{ printf("The cost of going  %d -> %d is %f; cost of going %d -> %d is %f\n", instance->best_sol[cross_node_a_index],
-						successor[instance->best_sol[cross_node_a_index]],
-						lookup_cost(instance->best_sol[cross_node_a_index], successor[instance->best_sol[cross_node_a_index]], instance), instance->best_sol[cross_node_b_index],
-						successor[instance->best_sol[cross_node_b_index]],
-						lookup_cost(instance->best_sol[cross_node_b_index], successor[instance->best_sol[cross_node_b_index]], instance));
+						instance->best_sol[(cross_node_a_index + 1) % instance->num_nodes],
+						lookup_cost(instance->best_sol[cross_node_a_index], instance->best_sol[(cross_node_a_index + 1) % instance->num_nodes], instance), instance->best_sol[cross_node_b_index],
+						instance->best_sol[(cross_node_b_index + 1) % instance->num_nodes],
+						lookup_cost(instance->best_sol[cross_node_b_index], instance->best_sol[(cross_node_b_index + 1) % instance->num_nodes], instance));
 					printf("Substituted these edges with %d -> %d, cost %f and %d -> %d, cost %f\n", instance->best_sol[cross_node_a_index], instance->best_sol[cross_node_b_index],
-						lookup_cost(instance->best_sol[cross_node_a_index], instance->best_sol[cross_node_b_index], instance), successor[instance->best_sol[cross_node_a_index]],
-						successor[instance->best_sol[cross_node_b_index]],
-						lookup_cost(successor[instance->best_sol[cross_node_a_index]], successor[instance->best_sol[cross_node_b_index]], instance)); }
+						lookup_cost(instance->best_sol[cross_node_a_index], instance->best_sol[cross_node_b_index], instance), instance->best_sol[(cross_node_a_index + 1) % instance->num_nodes],
+						instance->best_sol[(cross_node_b_index + 1) % instance->num_nodes],
+						lookup_cost(instance->best_sol[(cross_node_a_index + 1) % instance->num_nodes], instance->best_sol[(cross_node_b_index + 1) % instance->num_nodes], instance)); }
 #endif
 				}
 			}
@@ -824,39 +827,27 @@ int two_opt_ref(tsp_instance_t* instance) {
 
 		if (move_cost >= 0) done = true;
 		else {
-			bool invert = false;
-			for (int i = 0; i < instance->num_nodes; i++) {
-				if (i >= cross_node_b_index + cross_node_a_index + 1 - i) invert = false;
-				if (invert) {
-					unsigned int temp = instance->best_sol[i];
-					instance->best_sol[i] = instance->best_sol[cross_node_b_index + cross_node_a_index + 1 - i];
-					instance->best_sol[cross_node_b_index + cross_node_a_index + 1 - i] = temp;
-				}
-				if (i == cross_node_a_index) invert = true;
+			for (int i = 0; i < floor((cross_node_b_index - cross_node_a_index) / 2); i++) {
+				unsigned int temp = instance->best_sol[cross_node_a_index + 1 + i];
+				instance->best_sol[cross_node_a_index + 1 + i] = instance->best_sol[cross_node_b_index - i];
+				instance->best_sol[cross_node_b_index - i] = temp;
 			}
 
-			double current_cost = 0.0;
-			for (int i = 0; i < instance->num_nodes; i++)
-				current_cost += lookup_cost(instance->best_sol[i], instance->best_sol[(i + 1) % instance->num_nodes], instance);
-			instance->best_sol_cost = current_cost;
+			instance->best_sol_cost += move_cost;
 
 #if VERBOSE > 2
 			{ for (int i = 0; i < instance->num_nodes; i++) printf("Element of index %d of the tour is the node of index %d [%f, %f]\n", i, instance->best_sol[i],
 				instance->nodes[instance->best_sol[i]].x_coord, instance->nodes[instance->best_sol[i]].y_coord); }
 #endif
-
-			for (int i = 0; i < instance->num_nodes; i++)
-				successor[instance->best_sol[i]] = instance->best_sol[(i + 1) % instance->num_nodes];
 		}
 		double end_time = seconds();
-		execution_time += (end_time - start_time);
+		instance->time_left -= (end_time - start_time);
 
 #if VERBOSE > 2
-		{ if (execution_time >= instance->time_limit) printf("Time limit reached...\n"); }
+		{ if (instance->time_left <= 0) printf("Time limit reached during 2-opt refinement...\n"); }
 #endif
 	}
 
-	free(successor);
 	return 0;
 }
 

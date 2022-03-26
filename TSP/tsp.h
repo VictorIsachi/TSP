@@ -13,6 +13,10 @@
 #define NO_REF 1
 #define TWO_OPT 2
 
+#define MIN_RAND_RUNS 1000
+
+#define DIST_INDEX(i, j, n) ((j) - 1 + (i) * ((n) - 1) - ((i) * ((i) + 1)) / 2)
+
 typedef struct point_2d {
 	double x_coord;
 	double y_coord;
@@ -38,6 +42,7 @@ typedef struct tsp_instance {
 	unsigned int* best_sol;	//indices of the nodes[] in the tour order, it might be better to put this variable into a critical region to guarantee atomicity
 	double best_sol_cost;
 	double* costs;
+	double time_left;
 } tsp_instance_t;
 
 /**
@@ -57,7 +62,7 @@ int parse_command_line(const int argc, const char* argv[], tsp_instance_t* insta
 int get_data(tsp_instance_t* instance);
 
 /**
- * @brief find the optimal solution to the tsp instance, the best solution found is stored in the best_sol field of the tsp instance
+ * @brief find the optimal solution to the tsp instance, based on the sol_procedure_flag, the best solution found is stored in the best_sol field of the tsp instance
  * @param instance the instance whose solution must be found
  * @return 0 if no error was detected, a non-0 value otherwise
  */
@@ -75,6 +80,15 @@ void free_tsp_instance(tsp_instance_t* instance);
  * @return 0 if no error was detected, a non-0 value otherwise
  */
 int plot_points(tsp_instance_t* instance);
+
+/**
+ * @brief computes the Euclidean distance (i.e. cost) between the 2 nodes of index i and j of the tsp instance
+ * @param instance the tsp instance
+ * @param i index of the first node
+ * @param j index of the second node
+ * @return Euclidean distance between instance->nodes[i] and instance->nodes[j]
+ */
+double dist(int i, int j, tsp_instance_t* instance);
 
 /**
  * @brief computes the distance (i.e. cost) between any two nodes of the tsp instance
@@ -107,14 +121,14 @@ int int_round_clut(tsp_instance_t* instance);
 int tsp_seq_sol(tsp_instance_t* instance);
 
 /**
- * @brief generate a tour by applying the greedy heuristic
+ * @brief generate a tour by applying the greedy heuristic, the tour is maintained only if it's better than the best known tour
  * @param instance the tsp instance
  * @return 0 if no error was detected, a non-0 value otherwise
  */
 int tsp_gdy_sol(tsp_instance_t* instance);
 
 /**
- * @brief generate a tour by applying the extra-mileage heuristic
+ * @brief generate a tour by applying the extra-mileage heuristic, the tour is maintained only if it's better than the best known tour
  * @param instance the tsp instance
  * @return 0 if no error was detected, a non-0 value otherwise
  */
