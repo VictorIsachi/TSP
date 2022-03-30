@@ -10,3 +10,7 @@ void swap_uint_array(unsigned int a, unsigned int b, unsigned int array[]) {
 	array[a] = array[b];
 	array[b] = temp;
 }
+
+int cmp_int(const void* a, const void* b) {
+	return (*(int*)a - *(int*)b);
+}

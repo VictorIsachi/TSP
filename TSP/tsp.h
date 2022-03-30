@@ -5,6 +5,7 @@
 
 #define MAX_TIME DBL_MAX
 #define DBL_INFY DBL_MAX
+#define INT_NINFY ((INT_MIN + 1) / 2)
 
 #define SEQUENTIAL 1
 #define GREEDY 2
@@ -12,6 +13,10 @@
 
 #define NO_REF 1
 #define TWO_OPT 2
+
+#define NO_MH 1
+#define TABU 2
+#define VNS 3
 
 #define MIN_RAND_RUNS 1000
 
@@ -37,12 +42,16 @@ typedef struct tsp_instance {
 	int starting_index;
 	double prob_ign_opt;
 	unsigned int refine_flag;
+	unsigned int metaheur_flag;
 
 	//instance local data
 	unsigned int* best_sol;	//indices of the nodes[] in the tour order, it might be better to put this variable into a critical region to guarantee atomicity
 	double best_sol_cost;
 	double* costs;
 	double time_left;
+	unsigned int* tabu_list;
+	int min_tenure;
+	int max_tenure;
 } tsp_instance_t;
 
 /**

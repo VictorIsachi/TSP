@@ -63,10 +63,13 @@ static void comp_methods_1() {
 	greedy_inst_1.starting_index = -1;
 	greedy_inst_1.prob_ign_opt = 0.0;
 	greedy_inst_1.refine_flag = NO_REF;
+	greedy_inst_1.metaheur_flag = NO_MH;
 	greedy_inst_1.best_sol = NULL;
 	greedy_inst_1.best_sol_cost = DBL_INFY;
 	greedy_inst_1.costs = NULL;
 	greedy_inst_1.time_left = greedy_inst_1.time_limit;
+	greedy_inst_1.min_tenure = -1;
+	greedy_inst_1.max_tenure = -1;
 
 	tsp_instance_t greedy_inst_2;	//greedy random start + GRASP0.1
 	greedy_inst_2.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
@@ -79,10 +82,13 @@ static void comp_methods_1() {
 	greedy_inst_2.starting_index = -1;
 	greedy_inst_2.prob_ign_opt = 0.1;
 	greedy_inst_2.refine_flag = NO_REF;
+	greedy_inst_2.metaheur_flag = NO_MH;
 	greedy_inst_2.best_sol = NULL;
 	greedy_inst_2.best_sol_cost = DBL_INFY;
 	greedy_inst_2.costs = NULL;
 	greedy_inst_2.time_left = greedy_inst_2.time_limit;
+	greedy_inst_2.min_tenure = -1;
+	greedy_inst_2.max_tenure = -1;
 
 	tsp_instance_t greedy_inst_3;	//greedy random start + GRASP0.2
 	greedy_inst_3.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
@@ -95,10 +101,13 @@ static void comp_methods_1() {
 	greedy_inst_3.starting_index = -1;
 	greedy_inst_3.prob_ign_opt = 0.2;
 	greedy_inst_3.refine_flag = NO_REF;
+	greedy_inst_3.metaheur_flag = NO_MH;
 	greedy_inst_3.best_sol = NULL;
 	greedy_inst_3.best_sol_cost = DBL_INFY;
 	greedy_inst_3.costs = NULL;
 	greedy_inst_3.time_left = greedy_inst_3.time_limit;
+	greedy_inst_3.min_tenure = -1;
+	greedy_inst_3.max_tenure = -1;
 
 	tsp_instance_t extra_mileage_inst_1;	//extra-mileage random start
 	extra_mileage_inst_1.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
@@ -111,10 +120,13 @@ static void comp_methods_1() {
 	extra_mileage_inst_1.starting_index = -1;
 	extra_mileage_inst_1.prob_ign_opt = 0.0;
 	extra_mileage_inst_1.refine_flag = NO_REF;
+	extra_mileage_inst_1.metaheur_flag = NO_MH;
 	extra_mileage_inst_1.best_sol = NULL;
 	extra_mileage_inst_1.best_sol_cost = DBL_INFY;
 	extra_mileage_inst_1.costs = NULL;
 	extra_mileage_inst_1.time_left = extra_mileage_inst_1.time_limit;
+	extra_mileage_inst_1.min_tenure = -1;
+	extra_mileage_inst_1.max_tenure = -1;
 
 	tsp_instance_t extra_mileage_inst_2;	//extra-mileage random start + GRASP0.1
 	extra_mileage_inst_2.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
@@ -127,10 +139,13 @@ static void comp_methods_1() {
 	extra_mileage_inst_2.starting_index = -1;
 	extra_mileage_inst_2.prob_ign_opt = 0.1;
 	extra_mileage_inst_2.refine_flag = NO_REF;
+	extra_mileage_inst_2.metaheur_flag = NO_MH;
 	extra_mileage_inst_2.best_sol = NULL;
 	extra_mileage_inst_2.best_sol_cost = DBL_INFY;
 	extra_mileage_inst_2.costs = NULL;
 	extra_mileage_inst_2.time_left = extra_mileage_inst_2.time_limit;
+	extra_mileage_inst_2.min_tenure = -1;
+	extra_mileage_inst_2.max_tenure = -1;
 
 	tsp_instance_t extra_mileage_inst_3;	//extra-mileage random start + GRASP0.2
 	extra_mileage_inst_3.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
@@ -143,10 +158,13 @@ static void comp_methods_1() {
 	extra_mileage_inst_3.starting_index = -1;
 	extra_mileage_inst_3.prob_ign_opt = 0.2;
 	extra_mileage_inst_3.refine_flag = NO_REF;
+	extra_mileage_inst_3.metaheur_flag = NO_MH;
 	extra_mileage_inst_3.best_sol = NULL;
 	extra_mileage_inst_3.best_sol_cost = DBL_INFY;
 	extra_mileage_inst_3.costs = NULL;
 	extra_mileage_inst_3.time_left = extra_mileage_inst_3.time_limit;
+	extra_mileage_inst_3.min_tenure = -1;
+	extra_mileage_inst_3.max_tenure = -1;
 
 #if VERBOSE > 1
 	{ printf("Total time limit: %f...\nTime limit per instance %f...\n", TOTAL_TIME_LIMIT, TOTAL_TIME_LIMIT / NUM_RERUNS); }
@@ -312,10 +330,13 @@ static void comp_methods_2() {
 	greedy_inst_1.starting_index = -1;
 	greedy_inst_1.prob_ign_opt = 0.0;
 	greedy_inst_1.refine_flag = TWO_OPT;
+	greedy_inst_1.metaheur_flag = NO_MH;
 	greedy_inst_1.best_sol = NULL;
 	greedy_inst_1.best_sol_cost = DBL_INFY;
 	greedy_inst_1.costs = NULL;
 	greedy_inst_1.time_left = greedy_inst_1.time_limit;
+	greedy_inst_1.min_tenure = -1;
+	greedy_inst_1.max_tenure = -1;
 
 	tsp_instance_t greedy_inst_2;	//greedy random start + GRASP0.1
 	greedy_inst_2.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
@@ -328,10 +349,13 @@ static void comp_methods_2() {
 	greedy_inst_2.starting_index = -1;
 	greedy_inst_2.prob_ign_opt = 0.1;
 	greedy_inst_2.refine_flag = TWO_OPT;
+	greedy_inst_2.metaheur_flag = NO_MH;
 	greedy_inst_2.best_sol = NULL;
 	greedy_inst_2.best_sol_cost = DBL_INFY;
 	greedy_inst_2.costs = NULL;
 	greedy_inst_2.time_left = greedy_inst_2.time_limit;
+	greedy_inst_2.min_tenure = -1;
+	greedy_inst_2.max_tenure = -1;
 
 	tsp_instance_t greedy_inst_3;	//greedy random start + GRASP0.2
 	greedy_inst_3.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
@@ -344,10 +368,13 @@ static void comp_methods_2() {
 	greedy_inst_3.starting_index = -1;
 	greedy_inst_3.prob_ign_opt = 0.2;
 	greedy_inst_3.refine_flag = TWO_OPT;
+	greedy_inst_3.metaheur_flag = NO_MH;
 	greedy_inst_3.best_sol = NULL;
 	greedy_inst_3.best_sol_cost = DBL_INFY;
 	greedy_inst_3.costs = NULL;
 	greedy_inst_3.time_left = greedy_inst_3.time_limit;
+	greedy_inst_3.min_tenure = -1;
+	greedy_inst_3.max_tenure = -1;
 
 	tsp_instance_t extra_mileage_inst_1;	//extra-mileage random start
 	extra_mileage_inst_1.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
@@ -360,10 +387,13 @@ static void comp_methods_2() {
 	extra_mileage_inst_1.starting_index = -1;
 	extra_mileage_inst_1.prob_ign_opt = 0.0;
 	extra_mileage_inst_1.refine_flag = TWO_OPT;
+	extra_mileage_inst_1.metaheur_flag = NO_MH;
 	extra_mileage_inst_1.best_sol = NULL;
 	extra_mileage_inst_1.best_sol_cost = DBL_INFY;
 	extra_mileage_inst_1.costs = NULL;
 	extra_mileage_inst_1.time_left = extra_mileage_inst_1.time_limit;
+	extra_mileage_inst_1.min_tenure = -1;
+	extra_mileage_inst_1.max_tenure = -1;
 
 	tsp_instance_t extra_mileage_inst_2;	//extra-mileage random start + GRASP0.1
 	extra_mileage_inst_2.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
@@ -376,10 +406,13 @@ static void comp_methods_2() {
 	extra_mileage_inst_2.starting_index = -1;
 	extra_mileage_inst_2.prob_ign_opt = 0.1;
 	extra_mileage_inst_2.refine_flag = TWO_OPT;
+	extra_mileage_inst_2.metaheur_flag = NO_MH;
 	extra_mileage_inst_2.best_sol = NULL;
 	extra_mileage_inst_2.best_sol_cost = DBL_INFY;
 	extra_mileage_inst_2.costs = NULL;
 	extra_mileage_inst_2.time_left = extra_mileage_inst_2.time_limit;
+	extra_mileage_inst_2.min_tenure = -1;
+	extra_mileage_inst_2.max_tenure = -1;
 
 	tsp_instance_t extra_mileage_inst_3;	//extra-mileage random start + GRASP0.2
 	extra_mileage_inst_3.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
@@ -392,10 +425,13 @@ static void comp_methods_2() {
 	extra_mileage_inst_3.starting_index = -1;
 	extra_mileage_inst_3.prob_ign_opt = 0.2;
 	extra_mileage_inst_3.refine_flag = TWO_OPT;
+	extra_mileage_inst_3.metaheur_flag = NO_MH;
 	extra_mileage_inst_3.best_sol = NULL;
 	extra_mileage_inst_3.best_sol_cost = DBL_INFY;
 	extra_mileage_inst_3.costs = NULL;
 	extra_mileage_inst_3.time_left = extra_mileage_inst_3.time_limit;
+	extra_mileage_inst_3.min_tenure = -1;
+	extra_mileage_inst_3.max_tenure = -1;
 
 #if VERBOSE > 1
 	{ printf("Total time limit: %f...\nTime limit per instance %f...\n", TOTAL_TIME_LIMIT, TOTAL_TIME_LIMIT / NUM_RERUNS); }
@@ -563,10 +599,13 @@ static void comp_methods_3() {
 	greedy_inst_1.starting_index = -1;
 	greedy_inst_1.prob_ign_opt = 0.0;
 	greedy_inst_1.refine_flag = NO_REF;
+	greedy_inst_1.metaheur_flag = NO_MH;
 	greedy_inst_1.best_sol = NULL;
 	greedy_inst_1.best_sol_cost = DBL_INFY;
 	greedy_inst_1.costs = NULL;
 	greedy_inst_1.time_left = greedy_inst_1.time_limit;
+	greedy_inst_1.min_tenure = -1;
+	greedy_inst_1.max_tenure = -1;
 
 	tsp_instance_t greedy_inst_2;	//greedy random start + GRASP0.1
 	greedy_inst_2.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
@@ -579,10 +618,13 @@ static void comp_methods_3() {
 	greedy_inst_2.starting_index = -1;
 	greedy_inst_2.prob_ign_opt = 0.0;
 	greedy_inst_2.refine_flag = TWO_OPT;
+	greedy_inst_2.metaheur_flag = NO_MH;
 	greedy_inst_2.best_sol = NULL;
 	greedy_inst_2.best_sol_cost = DBL_INFY;
 	greedy_inst_2.costs = NULL;
 	greedy_inst_2.time_left = greedy_inst_2.time_limit;
+	greedy_inst_2.min_tenure = -1;
+	greedy_inst_2.max_tenure = -1;
 
 	tsp_instance_t extra_mileage_inst_1;	//extra-mileage random start
 	extra_mileage_inst_1.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
@@ -595,10 +637,13 @@ static void comp_methods_3() {
 	extra_mileage_inst_1.starting_index = -1;
 	extra_mileage_inst_1.prob_ign_opt = 0.0;
 	extra_mileage_inst_1.refine_flag = NO_REF;
+	extra_mileage_inst_1.metaheur_flag = NO_MH;
 	extra_mileage_inst_1.best_sol = NULL;
 	extra_mileage_inst_1.best_sol_cost = DBL_INFY;
 	extra_mileage_inst_1.costs = NULL;
 	extra_mileage_inst_1.time_left = extra_mileage_inst_1.time_limit;
+	extra_mileage_inst_1.min_tenure = -1;
+	extra_mileage_inst_1.max_tenure = -1;
 
 	tsp_instance_t extra_mileage_inst_2;	//extra-mileage random start + GRASP0.1
 	extra_mileage_inst_2.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
@@ -611,10 +656,13 @@ static void comp_methods_3() {
 	extra_mileage_inst_2.starting_index = -1;
 	extra_mileage_inst_2.prob_ign_opt = 0.0;
 	extra_mileage_inst_2.refine_flag = TWO_OPT;
+	extra_mileage_inst_2.metaheur_flag = NO_MH;
 	extra_mileage_inst_2.best_sol = NULL;
 	extra_mileage_inst_2.best_sol_cost = DBL_INFY;
 	extra_mileage_inst_2.costs = NULL;
 	extra_mileage_inst_2.time_left = extra_mileage_inst_2.time_limit;
+	extra_mileage_inst_2.min_tenure = -1;
+	extra_mileage_inst_2.max_tenure = -1;
 
 #if VERBOSE > 1
 	{ printf("Total time limit: %f...\nTime limit per instance %f...\n", TOTAL_TIME_LIMIT, TOTAL_TIME_LIMIT / NUM_RERUNS); }
@@ -745,10 +793,13 @@ static void comp_methods_0() {
 	greedy_inst.starting_index = -1;
 	greedy_inst.prob_ign_opt = 0.1;
 	greedy_inst.refine_flag = TWO_OPT;
+	greedy_inst.metaheur_flag = NO_MH;
 	greedy_inst.best_sol = NULL;
 	greedy_inst.best_sol_cost = DBL_INFY;
 	greedy_inst.costs = NULL;
 	greedy_inst.time_left = greedy_inst.time_limit;
+	greedy_inst.min_tenure = -1;
+	greedy_inst.max_tenure = -1;
 
 	tsp_instance_t extra_mileage_inst;	//extra-mileage random start GRASP0.1 and 2-opt
 	extra_mileage_inst.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
@@ -761,10 +812,13 @@ static void comp_methods_0() {
 	extra_mileage_inst.starting_index = -1;
 	extra_mileage_inst.prob_ign_opt = 0.1;
 	extra_mileage_inst.refine_flag = TWO_OPT;
+	extra_mileage_inst.metaheur_flag = NO_MH;
 	extra_mileage_inst.best_sol = NULL;
 	extra_mileage_inst.best_sol_cost = DBL_INFY;
 	extra_mileage_inst.costs = NULL;
 	extra_mileage_inst.time_left = extra_mileage_inst.time_limit;
+	extra_mileage_inst.min_tenure = -1;
+	extra_mileage_inst.max_tenure = -1;
 
 #if VERBOSE > 1
 	{ printf("Total time limit: %f...\nTime limit per instance %f...\n", TOTAL_TIME_LIMIT, TOTAL_TIME_LIMIT / NUM_RERUNS); }

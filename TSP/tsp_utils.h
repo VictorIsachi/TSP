@@ -16,9 +16,19 @@
 #include <assert.h>
 
 //need to figure out why -UVERBOSE does not undefine the macro
-#define VERBOSE 1
+#define VERBOSE 3
 
 #define OMP_NUM_THREADS 4
+
+#define max(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a > _b ? _a : _b; })
+
+#define min(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a < _b ? _a : _b; })
 
 /**
  * @brief count the number of seconds elapsed from the beginning of the program
@@ -33,5 +43,11 @@ double seconds();
  * @param array of unsigned int
  */
 void swap_uint_array(unsigned int a, unsigned int b, unsigned int array[]);
+
+/**
+ * @brief function that can be used in qsort() to compare integer values
+ * @return a - b
+ */
+int cmp_int(const void* a, const void* b);
 
 #endif //TSP_UTILS_H
