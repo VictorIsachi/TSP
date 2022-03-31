@@ -158,7 +158,7 @@ int plot_tour(tsp_instance_t* instance);
 int ref_sol(tsp_instance_t* instance);
 
 /**
- * @brief refine the tsp solution by using the 2-opt move
+ * @brief refine the tsp solution by using the 2-opt move and the appropriate meta-heuristic specified by metaheur_flag
  * @param instance the tsp instance
  * @return 0 if no error was detected, a non-0 value otherwise
  */

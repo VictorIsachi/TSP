@@ -900,12 +900,7 @@ static void comp_methods_0() {
 int main(int argc, char const* argv[]) {
 
 #if VERBOSE > 0 
-	{
-		printf("Input command:\n");
-		for (int i = 0; i < argc - 1; i++)
-			printf("%s ", argv[i]);
-		printf("%s\n", argv[argc - 1]);
-	}
+	{ printf("Input command:\n"); for (int i = 0; i < argc - 1; i++) printf("%s ", argv[i]); printf("%s\n", argv[argc - 1]); }
 #endif
 
 	double beg_time = seconds();
@@ -937,9 +932,7 @@ int main(int argc, char const* argv[]) {
 	double end_time = seconds();
 
 #if VERBOSE > 0
-	{
-		printf("Execution time: %fs\n", end_time - beg_time);
-	}
+	{ printf("Execution time: %fs\n", end_time - beg_time); }
 #endif
 
 	return 0;

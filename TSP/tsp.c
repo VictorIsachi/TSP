@@ -95,7 +95,7 @@ int parse_command_line(const int argc, const char* argv[], tsp_instance_t* insta
 
 static int read_input_file(tsp_instance_t* instance) {
 
-#if VERBOSE > 2
+#if VERBOSE > 1
 	{ printf("Reading input file...\n"); }
 #endif
 
@@ -215,7 +215,7 @@ static int read_input_file(tsp_instance_t* instance) {
 
 static int generate_random_nodes(tsp_instance_t* instance) {
 
-#if VERBOSE > 2
+#if VERBOSE > 1
 	{ printf("Generating random instance...\n"); }
 #endif
 
@@ -256,7 +256,7 @@ static int generate_random_nodes(tsp_instance_t* instance) {
 
 int get_data(tsp_instance_t* instance) {
 
-#if VERBOSE > 2
+#if VERBOSE > 1
 	{ printf("Preparing the instance nodes...\n"); }
 #endif
 
@@ -269,7 +269,7 @@ int get_data(tsp_instance_t* instance) {
 
 int plot_points(tsp_instance_t* instance) {
 
-#if VERBOSE > 2
+#if VERBOSE > 1
 	{ printf("Plotting points...\n"); }
 #endif
 
@@ -312,7 +312,7 @@ double dist(int i, int j, tsp_instance_t* instance) {
 
 int precompute_costs(tsp_instance_t* instance) {
 
-#if VERBOSE > 2
+#if VERBOSE > 1
 	{ printf("Filling in the cost look-up table...\n"); }
 #endif
 
@@ -360,7 +360,7 @@ double lookup_cost(int i, int j, tsp_instance_t* instance) {
 
 int int_round_clut(tsp_instance_t* instance) {
 
-#if VERBOSE > 2
+#if VERBOSE > 1
 	{ printf("Rounding to the nearest int the cost look-up table...\n"); }
 #endif
 
@@ -382,7 +382,7 @@ int int_round_clut(tsp_instance_t* instance) {
 
 int tsp_opt(tsp_instance_t* instance) {
 
-#if VERBOSE > 2
+#if VERBOSE > 1
 	{ printf("Solving the tsp instance...\n"); }
 #endif
 
@@ -413,7 +413,7 @@ int tsp_opt(tsp_instance_t* instance) {
 
 int tsp_seq_sol(tsp_instance_t* instance) {
 
-#if VERBOSE > 2
+#if VERBOSE > 1
 	{ printf("Applying the sequential method...\n"); }
 #endif
 
@@ -540,7 +540,7 @@ static void tsp_gdy_sol_si(unsigned int starting_index, tsp_instance_t* instance
 
 int tsp_gdy_sol(tsp_instance_t* instance) {
 
-#if VERBOSE > 2
+#if VERBOSE > 1
 	{ printf("Applying the greedy heuristic...\n"); }
 #endif
 
@@ -719,7 +719,7 @@ static void tsp_exm_sol_se(unsigned int start_index, unsigned int end_index, tsp
 
 int tsp_exm_sol(tsp_instance_t* instance) {
 
-#if VERBOSE > 2
+#if VERBOSE > 1
 	{ printf("Applying the extra-mileage heuristic...\n"); }
 #endif
 
@@ -787,7 +787,7 @@ int tsp_exm_sol(tsp_instance_t* instance) {
 
 int ref_sol(tsp_instance_t* instance) {
 
-#if VERBOSE > 2
+#if VERBOSE > 1
 	{ printf("Refining the tsp solution...\n"); }
 #endif
 
@@ -806,13 +806,15 @@ int ref_sol(tsp_instance_t* instance) {
 
 int two_opt_ref(tsp_instance_t* instance) {
 
-#if VERBOSE > 2
+	srand(instance->random_seed); for (int i = 0; i < MIN_RAND_RUNS + log(1 + instance->random_seed); i++) rand();
+
+#if VERBOSE > 1
 	{ printf("Applying the 2-opt move refinement procedure...\n"); }
 #endif
 
 	if (instance->metaheur_flag == TABU) {
 
-#if VERBOSE > 2
+#if VERBOSE > 1
 		{ printf("Applying the tabu search meta-heuristic...\n"); }
 #endif
 
@@ -912,17 +914,15 @@ int two_opt_ref(tsp_instance_t* instance) {
 		if (move_cost >= 0 && instance->metaheur_flag == NO_MH) done = true;
 		else if (move_cost >= 0 && instance->metaheur_flag == VNS) {
 
-#if VERBOSE > 2
+#if VERBOSE > 1
 			{ printf("Applying the VNS meta-heuristic kick...\n"); }
 #endif
 			
 			if (instance->num_nodes < 5) { fprintf(stderr, "Cannot apply VNS (5-kick) with less than 5 nodes\n"); return 1; }
 
 			//indices of the 5-kick nodes
-			int node_indices[] = { -1, -1, -1, -1, -1 };	
+			int node_indices[] = {-1, -1, -1, -1, -1};
 			int unitialized_indices = 5;
-
-			srand(instance->random_seed); for (int i = 0; i < MIN_RAND_RUNS + log(1 + instance->random_seed); i++) rand();
 
 			while (unitialized_indices > 0) {
 				int temp = (int)floor(((double)rand() / (RAND_MAX + 1)) * instance->num_nodes);	//[0, instance->num_nodes - 1]
@@ -935,7 +935,7 @@ int two_opt_ref(tsp_instance_t* instance) {
 			}
 			qsort(node_indices, 5, sizeof(int), cmp_int);
 
-#if VERBOSE > 4
+#if VERBOSE > 2
 			{ printf("5-kick nodes(indices): %d(%d), %d(%d), %d(%d), %d(%d), %d(%d)\n", current_sol[node_indices[0]], node_indices[0], current_sol[node_indices[1]], node_indices[1],
 				current_sol[node_indices[2]], node_indices[2], current_sol[node_indices[3]], node_indices[3], current_sol[node_indices[4]], node_indices[4]); }
 #endif
@@ -967,7 +967,7 @@ int two_opt_ref(tsp_instance_t* instance) {
 			current_sol_cost += lookup_cost(temp[node_indices[3]], temp[(node_indices[4] + 1) % instance->num_nodes], instance);	//adding   d->e'
 			free(temp);
 
-#if VERBOSE > 3
+#if VERBOSE > 2
 			{ printf("New tour has %d nodes and cost %f\n", tour_index, current_sol_cost); }
 #endif
 
@@ -1041,7 +1041,7 @@ int two_opt_ref(tsp_instance_t* instance) {
 
 int plot_tour(tsp_instance_t* instance) {
 
-#if VERBOSE > 2
+#if VERBOSE > 1
 	{ printf("Plotting tour...\n"); }
 #endif
 
@@ -1065,7 +1065,7 @@ int plot_tour(tsp_instance_t* instance) {
 
 void free_tsp_instance(tsp_instance_t* instance) {
 
-#if VERBOSE > 2
+#if VERBOSE > 1
 	{ printf("Freeing memory...\n"); }
 #endif
 
