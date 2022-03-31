@@ -16,6 +16,9 @@ You can also specify the following command line arguments:
 - `-start_index` **int**: specifies the starting index of the procedure. Not used by the sequential method. Must be **< #nodes** for the greedy method; if set to -1 will pick a starting index at random, if set to -2 will try all the starting indices and keep the best solution; by default set to 0. For the extra-mileage method any integer > -1 will result in the 2 nodes at maximum distance, -1 will result in 2 nodes picked at random, -2 will try all the pairs of nodes and keep the best solution; by default set to 0.  
 - `-prob_ign_opt` **double**: specifies the probability of selecting the 2nd best move at a particular iteration (GRASP). Must be between 0.0 and 1.0; by default set to 0.0.
 - `-ref_flag` **1 | 2**: specifies the refinement algorithm. 1 = no refinement, 2 = 2-opt move; by default set to 1.
+- `-meta_heur_flag` **1 | 2 | 3**: specifies the meta-heuristic method used to improve the 2-opt refinement procedure. 1 = no meta-heuristic, 2 = tabu search, 3 = VNS (5-kick). By default set to 1.
+- `-min_tenure` **int**: specifies the minimum tenure, must be **>= 0**. If not specified will be picked automatically based on the tsp instance size. If specified must also specify `-max_tenure`.
+- `-max_tenure` **int**: specifies the maximum tenure, must be **>= min_tenure**. If not specified will be picked automatically based on the tsp instance size. If specified must also specify `-min_tenure`.
 
 ## List of implemented features
 ```
@@ -30,4 +33,6 @@ You can also specify the following command line arguments:
 -greedy heuristic with GRASP
 -extra-mileage heuristic with GRASP
 -the 2-opt refinement procedure
+-tabu search meta-heuristic
+-VNS (5-kick) meta-heuristic
 ```
