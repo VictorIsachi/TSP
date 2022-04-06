@@ -17,6 +17,7 @@
 #define NO_MH 1
 #define TABU 2
 #define VNS 3
+#define SIM_ANNEAL 4
 
 #define MIN_RAND_RUNS 1000
 
@@ -35,8 +36,8 @@ typedef struct tsp_instance {
 	//instance hyper-parameters
 	double time_limit;
 	char* input_file_name;
-	unsigned int x_bound;
-	unsigned int y_bound;
+	int x_bound;
+	int y_bound;
 	unsigned int random_seed;
 	unsigned int sol_procedure_flag;
 	int starting_index;
@@ -52,6 +53,9 @@ typedef struct tsp_instance {
 	unsigned int* tabu_list;
 	int min_tenure;
 	int max_tenure;
+	int min_temperature;
+	int max_temperature;
+	unsigned int move_weight;
 } tsp_instance_t;
 
 /**

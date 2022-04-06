@@ -18,6 +18,9 @@
 #define TABU_LIST_MIN 75
 #define TABU_LIST_MIN_DIV 15
 
+#define DEFAULT_MAX_TEMP 100
+#define DEFAULT_MIN_TEMP 10
+
 int parse_command_line(const int argc, const char* argv[], tsp_instance_t* instance) {
 
 #if VERBOSE > 2
@@ -40,6 +43,9 @@ int parse_command_line(const int argc, const char* argv[], tsp_instance_t* insta
 	instance->metaheur_flag = NO_MH;
 	instance->min_tenure = -1;
 	instance->max_tenure = -1;
+	instance->min_temperature = -1;
+	instance->max_temperature = -1;
+	instance->move_weight = 25;
 
 	int help = 0;
 	if (argc < 1) help = 1;
@@ -58,6 +64,9 @@ int parse_command_line(const int argc, const char* argv[], tsp_instance_t* insta
 		if (strcmp(argv[i], "-metaheur_flag") == 0) { instance->metaheur_flag = atoi(argv[++i]); continue; }			// flag indicating the metaheuristic method
 		if (strcmp(argv[i], "-min_tenure") == 0) { instance->min_tenure = atoi(argv[++i]); continue; }					// the minimum size of the tenure (tabu search)
 		if (strcmp(argv[i], "-max_tenure") == 0) { instance->max_tenure = atoi(argv[++i]); continue; }					// the maximum size of the tenure (tabu search)
+		if (strcmp(argv[i], "-min_temp") == 0) { instance->min_temperature = atoi(argv[++i]); continue; }				// the minimum temperature (simulated annealing)
+		if (strcmp(argv[i], "-max_temp") == 0) { instance->max_temperature = atoi(argv[++i]); continue; }				// the maximum temperature (simulated annealing)
+		if (strcmp(argv[i], "-move_weight") == 0) { instance->move_weight = atoi(argv[++i]); continue; }				// used to determine p. acceptance (simulated annealing)
 		if (strcmp(argv[i], "-help") == 0) { help = 1; continue; } 													    // help
 		if (strcmp(argv[i], "--help") == 0) { help = 1; continue; } 													// help
 		help = 1;
@@ -83,9 +92,12 @@ int parse_command_line(const int argc, const char* argv[], tsp_instance_t* insta
 		printf("-start_index %d (0: default; -1: random; -2: exhaustive)\n", instance->starting_index);
 		printf("-prob_ign_opt %f (probability of selecting the second best node at each iteration)\n", instance->prob_ign_opt);
 		printf("-ref_flag %d (1: NO_REF; 2: TWO_OPT)\n", instance->refine_flag);
-		printf("-metaheur_flag %d (1: NO_MH; 2: TABU; 3: VNS)\n", instance->metaheur_flag);
+		printf("-metaheur_flag %d (1: NO_MH; 2: TABU; 3: VNS; 4: SIM_ANNEAL)\n", instance->metaheur_flag);
 		printf("-min_tenure %d (the minumum size of the tenure (tabu search))\n", instance->min_tenure);
 		printf("-max_tenure %d (the maximum size of the tenure (tabu search))\n", instance->max_tenure);
+		printf("-min_temp %d (the minumum temperature (simulated annealing))\n", instance->min_temperature);
+		printf("-max_temp %d (the maximum temperature (simulated annealing))\n", instance->max_temperature);
+		printf("-move_weight %d (scaling factor used to determine the probability of acceptance (simulated annealing))\n", instance->move_weight);
 		printf("\nenter -help or --help for help\n");
 		printf("----------------------------------------------------------------------------------------------\n\n");
 	}
@@ -812,6 +824,7 @@ int two_opt_ref(tsp_instance_t* instance) {
 	{ printf("Applying the 2-opt move refinement procedure...\n"); }
 #endif
 
+	//initializing the tabu list data
 	if (instance->metaheur_flag == TABU) {
 
 #if VERBOSE > 1
@@ -837,42 +850,75 @@ int two_opt_ref(tsp_instance_t* instance) {
 	memcpy(current_sol, instance->best_sol, instance->num_nodes * sizeof(unsigned int));
 	double current_sol_cost = instance->best_sol_cost;
 	bool done = false;
+	bool computed_avg_cost = false;
+	double avg_move_cost = 0.0;
 	while (!done && instance->time_left > 0) {
 
 		double start_time = seconds();
 
-		unsigned int cross_node_a_index = -1;
-		unsigned int cross_node_b_index = -1;
+		int cross_node_a_index = -1;
+		int cross_node_b_index = -1;
 		double move_cost = DBL_INFY;
 
-		for (int i = 0; i < instance->num_nodes - 2; i++) {
-			for (int j = i + 2; j < instance->num_nodes; j++) {
+		//random 2-opt move
+		if (instance->metaheur_flag == SIM_ANNEAL) {
+			cross_node_a_index = (unsigned int)floor(((double)rand() / (RAND_MAX + 1)) * instance->num_nodes);	//[0, instance->num_nodes - 1]
+			do {
+				cross_node_b_index = (unsigned int)floor(((double)rand() / (RAND_MAX + 1)) * instance->num_nodes);	//[0, instance->num_nodes - 1]
+			} while (cross_node_a_index == cross_node_b_index - 1 || cross_node_a_index == cross_node_b_index || cross_node_a_index == cross_node_b_index + 1);	//while the 2 nodes are cosecutive
+			if (cross_node_a_index > cross_node_b_index) {	//enforce cross_node_a_index < cross_node_b_index
+				unsigned int temp = cross_node_a_index;
+				cross_node_a_index = cross_node_b_index;
+				cross_node_b_index = temp;
+			}
+			move_cost = (lookup_cost(current_sol[cross_node_a_index], current_sol[cross_node_b_index], instance) + \
+				lookup_cost(current_sol[(cross_node_a_index + 1) % instance->num_nodes], current_sol[(cross_node_b_index + 1) % instance->num_nodes], instance)) - \
+				(lookup_cost(current_sol[cross_node_a_index], current_sol[(cross_node_a_index + 1) % instance->num_nodes], instance) + \
+					lookup_cost(current_sol[cross_node_b_index], current_sol[(cross_node_b_index + 1) % instance->num_nodes], instance));
 
-				if ((lookup_cost(current_sol[i], current_sol[j], instance) + \
-					lookup_cost(current_sol[(i + 1) % instance->num_nodes], current_sol[(j + 1) % instance->num_nodes], instance)) - \
-					(lookup_cost(current_sol[i], current_sol[(i + 1) % instance->num_nodes], instance) + \
-						lookup_cost(current_sol[j], current_sol[(j + 1) % instance->num_nodes], instance)) < move_cost) {	//best 2-opt move so far
-					if (instance->metaheur_flag == TABU) {	//tabu search
-						if (current_iter - instance->tabu_list[current_sol[i]] <= instance->min_tenure + (current_iter % (instance->max_tenure + 1 - instance->min_tenure))) {	//in tabu list
+#if VERBOSE > 2
+			{ printf("Random move: node %d, node %d, cost %f\n", current_sol[cross_node_a_index], current_sol[cross_node_b_index], move_cost); }
+#endif
+		}
+		//looking for the min cost 2-opt move
+		else {
+			for (int i = 0; i < instance->num_nodes - 2; i++) {
+				for (int j = i + 2; j < instance->num_nodes; j++) {
+
+					if ((lookup_cost(current_sol[i], current_sol[j], instance) + \
+						lookup_cost(current_sol[(i + 1) % instance->num_nodes], current_sol[(j + 1) % instance->num_nodes], instance)) - \
+						(lookup_cost(current_sol[i], current_sol[(i + 1) % instance->num_nodes], instance) + \
+							lookup_cost(current_sol[j], current_sol[(j + 1) % instance->num_nodes], instance)) < move_cost) {	//best 2-opt move so far
+						if (instance->metaheur_flag == TABU) {	//tabu search
+							if (current_iter - instance->tabu_list[current_sol[i]] <= instance->min_tenure + (current_iter % (instance->max_tenure + 1 - instance->min_tenure))) {	//in tabu list
 #if VERBOSE > 5
-							{ printf("Node %d detected to be in the tabu list\n", current_sol[i]); }
+								{ printf("Node %d detected to be in the tabu list\n", current_sol[i]); }
 #endif	
-							if (current_sol_cost + move_cost < instance->best_sol_cost) {	//aspiration criterion (improving best sol)
+								if (current_sol_cost + move_cost < instance->best_sol_cost) {	//aspiration criterion (improving best sol)
+									cross_node_a_index = i;
+									cross_node_b_index = j;
+									move_cost = (lookup_cost(current_sol[cross_node_a_index], current_sol[cross_node_b_index], instance) + \
+										lookup_cost(current_sol[(cross_node_a_index + 1) % instance->num_nodes], current_sol[(cross_node_b_index + 1) % instance->num_nodes], instance)) - \
+										(lookup_cost(current_sol[cross_node_a_index], current_sol[(cross_node_a_index + 1) % instance->num_nodes], instance) + \
+											lookup_cost(current_sol[cross_node_b_index], current_sol[(cross_node_b_index + 1) % instance->num_nodes], instance));
+#if VERBOSE > 5
+									{ printf("Aspiration criterion! Best cost: %f; new cost: %f\n", instance->best_sol_cost, current_sol_cost + move_cost); }
+#endif
+								}
+							}
+							else {	//not in tabu list
+#if VERBOSE > 5
+								{ printf("Node %d not detected to be in the tabu list\n", current_sol[i]); }
+#endif
 								cross_node_a_index = i;
 								cross_node_b_index = j;
 								move_cost = (lookup_cost(current_sol[cross_node_a_index], current_sol[cross_node_b_index], instance) + \
 									lookup_cost(current_sol[(cross_node_a_index + 1) % instance->num_nodes], current_sol[(cross_node_b_index + 1) % instance->num_nodes], instance)) - \
 									(lookup_cost(current_sol[cross_node_a_index], current_sol[(cross_node_a_index + 1) % instance->num_nodes], instance) + \
 										lookup_cost(current_sol[cross_node_b_index], current_sol[(cross_node_b_index + 1) % instance->num_nodes], instance));
-#if VERBOSE > 5
-								{ printf("Aspiration criterion! Best cost: %f; new cost: %f\n", instance->best_sol_cost, current_sol_cost + move_cost); }
-#endif
 							}
 						}
-						else {	//not in tabu list
-#if VERBOSE > 5
-							{ printf("Node %d not detected to be in the tabu list\n", current_sol[i]); }
-#endif
+						else {	//no tabu search
 							cross_node_a_index = i;
 							cross_node_b_index = j;
 							move_cost = (lookup_cost(current_sol[cross_node_a_index], current_sol[cross_node_b_index], instance) + \
@@ -880,38 +926,34 @@ int two_opt_ref(tsp_instance_t* instance) {
 								(lookup_cost(current_sol[cross_node_a_index], current_sol[(cross_node_a_index + 1) % instance->num_nodes], instance) + \
 									lookup_cost(current_sol[cross_node_b_index], current_sol[(cross_node_b_index + 1) % instance->num_nodes], instance));
 						}
-					}
-					else {	//no tabu search
-						cross_node_a_index = i;
-						cross_node_b_index = j;
-						move_cost = (lookup_cost(current_sol[cross_node_a_index], current_sol[cross_node_b_index], instance) + \
-							lookup_cost(current_sol[(cross_node_a_index + 1) % instance->num_nodes], current_sol[(cross_node_b_index + 1) % instance->num_nodes], instance)) - \
-							(lookup_cost(current_sol[cross_node_a_index], current_sol[(cross_node_a_index + 1) % instance->num_nodes], instance) + \
-								lookup_cost(current_sol[cross_node_b_index], current_sol[(cross_node_b_index + 1) % instance->num_nodes], instance));
-					}
 
 #if VERBOSE > 8
-					{ printf("The cost of going  %d -> %d is %f; cost of going %d -> %d is %f\n", current_sol[cross_node_a_index],
-						current_sol[(cross_node_a_index + 1) % instance->num_nodes],
-						lookup_cost(current_sol[cross_node_a_index], current_sol[(cross_node_a_index + 1) % instance->num_nodes], instance), current_sol[cross_node_b_index],
-						current_sol[(cross_node_b_index + 1) % instance->num_nodes],
-						lookup_cost(current_sol[cross_node_b_index], current_sol[(cross_node_b_index + 1) % instance->num_nodes], instance));
-					printf("Substituted these edges with %d -> %d, cost %f and %d -> %d, cost %f\n", current_sol[cross_node_a_index], current_sol[cross_node_b_index],
-						lookup_cost(current_sol[cross_node_a_index], current_sol[cross_node_b_index], instance), current_sol[(cross_node_a_index + 1) % instance->num_nodes],
-						current_sol[(cross_node_b_index + 1) % instance->num_nodes],
-						lookup_cost(current_sol[(cross_node_a_index + 1) % instance->num_nodes], current_sol[(cross_node_b_index + 1) % instance->num_nodes], instance)); }
+						{ if (cross_node_a_index < 0 || cross_node_b_index < 0) { printf("Infeasible 2-opt move\n"); }
+						else { printf("The cost of going  %d -> %d is %f; cost of going %d -> %d is %f\n", current_sol[cross_node_a_index],
+							current_sol[(cross_node_a_index + 1) % instance->num_nodes],
+							lookup_cost(current_sol[cross_node_a_index], current_sol[(cross_node_a_index + 1) % instance->num_nodes], instance), current_sol[cross_node_b_index],
+							current_sol[(cross_node_b_index + 1) % instance->num_nodes],
+							lookup_cost(current_sol[cross_node_b_index], current_sol[(cross_node_b_index + 1) % instance->num_nodes], instance));
+						printf("Substituted these edges with %d -> %d, cost %f and %d -> %d, cost %f\n", current_sol[cross_node_a_index], current_sol[cross_node_b_index],
+							lookup_cost(current_sol[cross_node_a_index], current_sol[cross_node_b_index], instance), current_sol[(cross_node_a_index + 1) % instance->num_nodes],
+							current_sol[(cross_node_b_index + 1) % instance->num_nodes],
+							lookup_cost(current_sol[(cross_node_a_index + 1) % instance->num_nodes], current_sol[(cross_node_b_index + 1) % instance->num_nodes], instance));} 
+						}
 #endif
+					}
 				}
 			}
-		}
 
-		if (cross_node_a_index < 0 || cross_node_b_index < 0) { fprintf(stderr, "2-opt found no feasible move: aborting\n"); return 1; }
+			if (cross_node_a_index < 0 || cross_node_b_index < 0) { fprintf(stderr, "2-opt found no feasible move: aborting\n"); return 1; }
 
 #if VERBOSE > 2
-		{ printf("Best move found: node %d, node %d, cost %f\n", current_sol[cross_node_a_index], current_sol[cross_node_b_index], move_cost); }
+			{ printf("Best move found: node %d, node %d, cost %f\n", current_sol[cross_node_a_index], current_sol[cross_node_b_index], move_cost); }
 #endif
+		}
 
+		//no improveing 2-opt move and no meta-heuristic: finish refinement
 		if (move_cost >= 0 && instance->metaheur_flag == NO_MH) done = true;
+		//5-kick
 		else if (move_cost >= 0 && instance->metaheur_flag == VNS) {
 
 #if VERBOSE > 1
@@ -987,6 +1029,61 @@ int two_opt_ref(tsp_instance_t* instance) {
 #endif
 			}
 		}
+		//simulated annealing stochastic move
+		else if (move_cost >= 0 && instance->metaheur_flag == SIM_ANNEAL) {
+#if VERBOSE > 3
+			{ printf("Deciding whether to accept the move (simulated annealing)...\n"); }
+#endif
+			//compute the average cost of a refined solution
+			if (!computed_avg_cost) {
+				for (int i = 0; i < instance->num_nodes - 1; i++)
+					for (int j = i + 1; j < instance->num_nodes; j++)
+						avg_move_cost += lookup_cost(i, j, instance);
+				avg_move_cost /= ((instance->num_nodes * (instance->num_nodes - 1)) / 2);
+				computed_avg_cost = true;
+			}
+
+			if (instance->min_temperature < 0) { instance->min_temperature = DEFAULT_MIN_TEMP; }
+			if (instance->max_temperature < 0) { instance->max_temperature = DEFAULT_MAX_TEMP; }
+
+			int temperature = instance->max_temperature - (current_iter % (instance->max_temperature + 1 - instance->min_temperature));
+			double prob_acceptance = exp(-(instance->move_weight * move_cost * instance->max_temperature) / (temperature * avg_move_cost));
+
+#if VERBOSE > 2
+			{ printf("Temperature range [%d, %d], average move cost %f, temperature %d, prob_acceptance %f\n", 
+				instance->min_temperature, instance->max_temperature, avg_move_cost, temperature, prob_acceptance); }
+#endif
+
+			//accept move
+			if ((double)rand() / RAND_MAX < prob_acceptance) {
+#if VERBOSE > 3
+				{ printf("Move accepted...\n"); }
+#endif
+				//perform the 2-opt move (reverse current_sol from element of index cross_node_a_index + 1 to element of index cross_node_b_index)
+				for (int i = 0; i < floor((cross_node_b_index - cross_node_a_index) / 2); i++) {
+					unsigned int temp = current_sol[cross_node_a_index + 1 + i];
+					current_sol[cross_node_a_index + 1 + i] = current_sol[cross_node_b_index - i];
+					current_sol[cross_node_b_index - i] = temp;
+				}
+				current_sol_cost += move_cost;
+
+#if VERBOSE > 4
+				{ printf("New solution cost: %f\n", current_sol_cost); }
+#endif
+
+				if (current_sol_cost < instance->best_sol_cost) {
+					memcpy(instance->best_sol, current_sol, instance->num_nodes * sizeof(unsigned int));
+					instance->best_sol_cost = current_sol_cost;
+
+#if VERBOSE > 2
+					{ printf("Lucky swap (random 2-opt move improved best known sol)!\nSolution cost %f\n", instance->best_sol_cost); for (int i = 0; i < instance->num_nodes; i++)
+						printf("Element of index %d of the tour is the node of index %d [%f, %f]\n", i, instance->best_sol[i],
+							instance->nodes[instance->best_sol[i]].x_coord, instance->nodes[instance->best_sol[i]].y_coord); }
+#endif
+				}
+			}
+		}
+		//applying the 2-opt move
 		else {
 			//perform the 2-opt move (reverse current_sol from element of index cross_node_a_index + 1 to element of index cross_node_b_index)
 			for (int i = 0; i < floor((cross_node_b_index - cross_node_a_index) / 2); i++) {	
