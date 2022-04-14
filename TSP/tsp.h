@@ -18,6 +18,7 @@
 #define TABU 2
 #define VNS 3
 #define SIM_ANNEAL 4
+#define GEN 5
 
 #define MIN_RAND_RUNS 1000
 
@@ -44,6 +45,12 @@ typedef struct tsp_instance {
 	double prob_ign_opt;
 	unsigned int refine_flag;
 	unsigned int metaheur_flag;
+	int min_tenure;
+	int max_tenure;
+	int min_temperature;
+	int max_temperature;
+	unsigned int move_weight;
+	unsigned int pop_size;
 
 	//instance local data
 	unsigned int* best_sol;	//indices of the nodes[] in the tour order, it might be better to put this variable into a critical region to guarantee atomicity
@@ -51,11 +58,6 @@ typedef struct tsp_instance {
 	double* costs;
 	double time_left;
 	unsigned int* tabu_list;
-	int min_tenure;
-	int max_tenure;
-	int min_temperature;
-	int max_temperature;
-	unsigned int move_weight;
 } tsp_instance_t;
 
 /**
@@ -167,5 +169,12 @@ int ref_sol(tsp_instance_t* instance);
  * @return 0 if no error was detected, a non-0 value otherwise
  */
 int two_opt_ref(tsp_instance_t* instance);
+
+/**
+ * @brief produce the tsp solution by using the genetic algorithm meta-heuristic
+ * @param instance the tsp instance
+ * @return 0 if no error was detected, a non-0 value otherwise
+ */
+int genetic(tsp_instance_t* instance);
 
 #endif //TSP_H
