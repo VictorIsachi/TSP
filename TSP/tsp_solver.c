@@ -3,9 +3,9 @@
 #include "tsp_utils.h"
 #include "tsp.h"
 
-#define TOTAL_TIME_LIMIT 300.0
+#define TOTAL_TIME_LIMIT 1000.0
 #define NUM_RERUNS 100
-#define NUM_POINTS 1000
+#define NUM_POINTS 200
 #define POINT_BOUND 1000
 #define RAND_SEED 1
 
@@ -26,6 +26,13 @@ static void first_try_sol(tsp_instance_t* instance) {
 	printf("Solution cost: %f\n", instance->best_sol_cost);
 	if (plot_tour(instance)) { free_tsp_instance(instance); fprintf(stderr, "Tour plotting failed\n"); exit(1); }
 	if (ref_sol(instance)) { free_tsp_instance(instance); fprintf(stderr, "Refinement algorithm failed\n"); exit(1); }
+	printf("Solution cost: %f\n", instance->best_sol_cost);
+	if (plot_tour(instance)) { free_tsp_instance(instance); fprintf(stderr, "Tour plotting failed\n"); exit(1); }
+}
+
+static void genetic_procedure(tsp_instance_t* instance) {
+	//first try solution
+	if (tsp_opt(instance)) { free_tsp_instance(instance); fprintf(stderr, "Optimization algorithm failed\n"); exit(1); }
 	printf("Solution cost: %f\n", instance->best_sol_cost);
 	if (plot_tour(instance)) { free_tsp_instance(instance); fprintf(stderr, "Tour plotting failed\n"); exit(1); }
 }
@@ -775,6 +782,223 @@ static void comp_methods_3() {
 	fclose(perf_prof_file);
 }
 
+//chap. 4.5
+static void comp_methods_4() {
+
+#if VERBOSE > 1
+	{ printf("Comparing greedy_random_start + 2-opt + tabu search, greedy_random_start + 2-opt + VNS\n \
+			  greedy_random_start + 2-opt + simulated annealing, genetic algorithm (greedy_random_start + 2-opt)...\n"); }
+#endif
+
+	tsp_instance_t tabu_search;	//tabu search
+	tabu_search.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
+	tabu_search.input_file_name = NULL;
+	tabu_search.x_bound = -1;
+	tabu_search.y_bound = -1;
+	tabu_search.num_nodes = -1;
+	tabu_search.nodes = NULL;
+	tabu_search.random_seed = time(NULL);
+	tabu_search.sol_procedure_flag = GREEDY;
+	tabu_search.starting_index = -1;
+	tabu_search.prob_ign_opt = 0.0;
+	tabu_search.refine_flag = TWO_OPT;
+	tabu_search.metaheur_flag = TABU;
+	tabu_search.min_tenure = -1;
+	tabu_search.max_tenure = -1;
+	tabu_search.min_temperature = -1;
+	tabu_search.max_temperature = -1;
+	tabu_search.move_weight = 25;
+	tabu_search.pop_size = 100;
+	tabu_search.best_sol = NULL;
+	tabu_search.best_sol_cost = DBL_INFY;
+	tabu_search.costs = NULL;
+	tabu_search.time_left = tabu_search.time_limit;
+	tabu_search.tabu_list = NULL;
+
+	tsp_instance_t vns;	//VNS
+	vns.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
+	vns.input_file_name = NULL;
+	vns.x_bound = -1;
+	vns.y_bound = -1;
+	vns.num_nodes = -1;
+	vns.nodes = NULL;
+	vns.random_seed = time(NULL);
+	vns.sol_procedure_flag = GREEDY;
+	vns.starting_index = -1;
+	vns.prob_ign_opt = 0.0;
+	vns.refine_flag = TWO_OPT;
+	vns.metaheur_flag = VNS;
+	vns.min_tenure = -1;
+	vns.max_tenure = -1;
+	vns.min_temperature = -1;
+	vns.max_temperature = -1;
+	vns.move_weight = 25;
+	vns.pop_size = 100;
+	vns.best_sol = NULL;
+	vns.best_sol_cost = DBL_INFY;
+	vns.costs = NULL;
+	vns.time_left = vns.time_limit;
+	vns.tabu_list = NULL;
+
+	tsp_instance_t sim_ann;	//simulated annealing
+	sim_ann.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
+	sim_ann.input_file_name = NULL;
+	sim_ann.x_bound = -1;
+	sim_ann.y_bound = -1;
+	sim_ann.num_nodes = -1;
+	sim_ann.nodes = NULL;
+	sim_ann.random_seed = time(NULL);
+	sim_ann.sol_procedure_flag = GREEDY;
+	sim_ann.starting_index = -1;
+	sim_ann.prob_ign_opt = 0.0;
+	sim_ann.refine_flag = TWO_OPT;
+	sim_ann.metaheur_flag = SIM_ANNEAL;
+	sim_ann.min_tenure = -1;
+	sim_ann.max_tenure = -1;
+	sim_ann.min_temperature = -1;
+	sim_ann.max_temperature = -1;
+	sim_ann.move_weight = 25;
+	sim_ann.pop_size = 100;
+	sim_ann.best_sol = NULL;
+	sim_ann.best_sol_cost = DBL_INFY;
+	sim_ann.costs = NULL;
+	sim_ann.time_left = sim_ann.time_limit;
+	sim_ann.tabu_list = NULL;
+
+	tsp_instance_t gen_alg;	//genetic algorithm
+	gen_alg.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
+	gen_alg.input_file_name = NULL;
+	gen_alg.x_bound = -1;
+	gen_alg.y_bound = -1;
+	gen_alg.num_nodes = -1;
+	gen_alg.nodes = NULL;
+	gen_alg.random_seed = time(NULL);
+	gen_alg.sol_procedure_flag = GREEDY;
+	gen_alg.starting_index = -1;
+	gen_alg.prob_ign_opt = 0.0;
+	gen_alg.refine_flag = TWO_OPT;
+	gen_alg.metaheur_flag = GEN;
+	gen_alg.min_tenure = -1;
+	gen_alg.max_tenure = -1;
+	gen_alg.min_temperature = -1;
+	gen_alg.max_temperature = -1;
+	gen_alg.move_weight = 25;
+	gen_alg.pop_size = 100;
+	gen_alg.best_sol = NULL;
+	gen_alg.best_sol_cost = DBL_INFY;
+	gen_alg.costs = NULL;
+	gen_alg.time_left = gen_alg.time_limit;
+	gen_alg.tabu_list = NULL;
+
+#if VERBOSE > 1
+	{ printf("Total time limit: %f...\nTime limit per instance %f...\n", TOTAL_TIME_LIMIT, TOTAL_TIME_LIMIT / NUM_RERUNS); }
+#endif
+
+	FILE* perf_prof_file = fopen(PERF_PROF_FILENAME, "w");
+	if (perf_prof_file == NULL) { fprintf(stderr, "cannot open the perf_prof_file\n"); exit(1); }
+
+	fprintf(perf_prof_file, "4, greedy_rand_start+2-opt+tabu, greedy_rand_start+2-opt+vns, greedy_rand_start+2-opt+sim_anneal, greedy_rand_start+2-opt+genetic\n");
+
+	srand(RAND_SEED); for (int i = 0; i < MIN_RAND_RUNS + log(1 + RAND_SEED); i++) rand();
+	point_2d_t* nodes = (point_2d_t*)malloc(NUM_POINTS * sizeof(point_2d_t));
+	int num_costs = NUM_POINTS * (NUM_POINTS - 1) / 2;
+	double* costs = (double*)malloc(num_costs * sizeof(double));
+	unsigned int random_seed;
+	for (int i = 0; i < NUM_RERUNS; i++) {
+
+		//generating the random nodes
+		for (int i = 0; i < NUM_POINTS; i++) {
+			nodes[i].x_coord = ((double)rand() / RAND_MAX) * POINT_BOUND;
+			nodes[i].y_coord = ((double)rand() / RAND_MAX) * POINT_BOUND;
+		}
+		tabu_search.num_nodes = NUM_POINTS;
+		tabu_search.nodes = nodes;
+		vns.num_nodes = NUM_POINTS;
+		vns.nodes = nodes;
+		sim_ann.num_nodes = NUM_POINTS;
+		sim_ann.nodes = nodes;
+		gen_alg.num_nodes = NUM_POINTS;
+		gen_alg.nodes = nodes;
+
+		//precomputing the costs
+		for (int i = 0; i < NUM_POINTS - 1; i++) {
+			for (int j = i + 1; j < NUM_POINTS; j++) {
+				costs[DIST_INDEX(i, j, NUM_POINTS)] = (double)((int)(dist(i, j, &tabu_search) + 0.5));
+			}
+		}
+		tabu_search.costs = costs;
+		vns.costs = costs;
+		sim_ann.costs = costs;
+		gen_alg.costs = costs;
+
+		//setting-up the random seeds
+		random_seed = rand();
+		tabu_search.random_seed = random_seed;
+		vns.random_seed = random_seed;
+		sim_ann.random_seed = random_seed;
+		gen_alg.random_seed = random_seed;
+
+		//finding the best solutions
+		double tabu_search_best_sol_cost = DBL_INFY;
+		tabu_search.time_left = tabu_search.time_limit;
+		while (tabu_search.time_left > 0) {
+			double elapsed_timer_start = seconds();
+			tsp_opt(&tabu_search);
+			ref_sol(&tabu_search);
+			if (tabu_search.best_sol_cost < tabu_search_best_sol_cost)
+				tabu_search_best_sol_cost = tabu_search.best_sol_cost;
+			free(tabu_search.best_sol);
+			tabu_search.best_sol = NULL;
+			double elapsed_timer_stop = seconds();
+			tabu_search.time_left -= (elapsed_timer_stop - elapsed_timer_start);
+		}
+		double vns_best_sol_cost = DBL_INFY;
+		vns.time_left = vns.time_limit;
+		while (vns.time_left > 0) {
+			double elapsed_timer_start = seconds();
+			tsp_opt(&vns);
+			ref_sol(&vns);
+			if (vns.best_sol_cost < vns_best_sol_cost)
+				vns_best_sol_cost = vns.best_sol_cost;
+			free(vns.best_sol);
+			vns.best_sol = NULL;
+			double elapsed_timer_stop = seconds();
+			vns.time_left -= (elapsed_timer_stop - elapsed_timer_start);
+		}
+		double sim_ann_best_sol_cost = DBL_INFY;
+		sim_ann.time_left = sim_ann.time_limit;
+		while (sim_ann.time_left > 0) {
+			double elapsed_timer_start = seconds();
+			tsp_opt(&sim_ann);
+			ref_sol(&sim_ann);
+			if (sim_ann.best_sol_cost < sim_ann_best_sol_cost)
+				sim_ann_best_sol_cost = sim_ann.best_sol_cost;
+			free(sim_ann.best_sol);
+			sim_ann.best_sol = NULL;
+			double elapsed_timer_stop = seconds();
+			sim_ann.time_left -= (elapsed_timer_stop - elapsed_timer_start);
+		}
+		double gen_alg_best_sol_cost = DBL_INFY;
+		gen_alg.time_left = gen_alg.time_limit;
+		while (gen_alg.time_left > 0) {
+			double elapsed_timer_start = seconds();
+			tsp_opt(&gen_alg);
+			if (gen_alg.best_sol_cost < gen_alg_best_sol_cost)
+				gen_alg_best_sol_cost = gen_alg.best_sol_cost;
+			free(gen_alg.best_sol);
+			gen_alg.best_sol = NULL;
+			double elapsed_timer_stop = seconds();
+			gen_alg.time_left -= (elapsed_timer_stop - elapsed_timer_start);
+		}
+
+		fprintf(perf_prof_file, "random_seed_%d, %f, %f, %f, %f\n", random_seed, tabu_search_best_sol_cost, vns_best_sol_cost, sim_ann_best_sol_cost, gen_alg_best_sol_cost);
+	}
+	free(nodes);
+	free(costs);
+
+	fclose(perf_prof_file);
+}
+
 int main(int argc, char const* argv[]) {
 
 #if VERBOSE > 0 
@@ -795,6 +1019,12 @@ int main(int argc, char const* argv[]) {
 	cont_search(&instance);
 	free_tsp_instance(&instance);*/
 
+	////uncomment for the genetic algorithm instance (does not refine)////
+	/*tsp_instance_t instance;
+	set_up_tsp_instance(argc, argv, &instance);
+	genetic_procedure(&instance);
+	free_tsp_instance(&instance);*/
+
 	////uncomment for perf prof of chap 2.3////
 	//comp_methods_1();
 
@@ -803,6 +1033,9 @@ int main(int argc, char const* argv[]) {
 
 	////uncomment for perf prof of chap 3.2 fig 2////
 	//comp_methods_3();
+
+	////uncomment for perf prof of chap 4.5////
+	//comp_methods_4();
 
 	double end_time = seconds();
 

@@ -48,7 +48,7 @@ int parse_command_line(const int argc, const char* argv[], tsp_instance_t* insta
 	instance->min_temperature = -1;
 	instance->max_temperature = -1;
 	instance->move_weight = 25;
-	instance->pop_size = 0;
+	instance->pop_size = 100;
 
 	int help = 0;
 	if (argc < 1) help = 1;
@@ -77,6 +77,7 @@ int parse_command_line(const int argc, const char* argv[], tsp_instance_t* insta
 	}
 
 	//finalize parameter initialization
+	instance->nodes = NULL;
 	instance->best_sol = NULL;
 	instance->best_sol_cost = DBL_INFY;
 	instance->costs = NULL;
@@ -219,12 +220,9 @@ static int read_input_file(tsp_instance_t* instance) {
 	fclose(input_file);
 
 #if VERBOSE > 3
-	{
 		printf("read %d nodes:\n", instance->num_nodes);
-		for (int i = 0; i < instance->num_nodes; i++) {
+		for (int i = 0; i < instance->num_nodes; i++)
 			printf("%d: (%f, %f)\n", i + 1, instance->nodes[i].x_coord, instance->nodes[i].y_coord);
-		}
-	}
 #endif
 
 	return 0;
@@ -422,8 +420,12 @@ int tsp_opt(tsp_instance_t* instance) {
 		instance->metaheur_flag = NO_MH;
 		return tsp_gdy_sol(instance);
 	}
-	else if (instance->metaheur_flag == GEN)
+	else if (instance->metaheur_flag == GEN) {
+		instance->sol_procedure_flag = SEQUENTIAL;
+		instance->refine_flag = NO_REF;
+		tsp_seq_sol(instance);
 		return genetic(instance);
+	}
 	else {
 		switch (instance->sol_procedure_flag) {
 		case SEQUENTIAL:
@@ -1151,6 +1153,266 @@ int two_opt_ref(tsp_instance_t* instance) {
 	return 0;
 }
 
+static tsp_instance_t* mate(tsp_instance_t* population, tsp_instance_t* instance, double pop_cprob) {
+
+#if VERBOSE > 3
+	{ printf("Mateing...\n"); }
+#endif
+
+	//generate random number that will determine the indices od the 2 parents
+	double parent_1_pos = ((double)rand() / RAND_MAX) * pop_cprob;
+	double parent_2_pos = ((double)rand() / RAND_MAX) * pop_cprob;
+
+	//population indices of the 2 parents
+	int parent_1_index = -1;
+	int parent_2_index = -1;
+
+	//accumulates the probability distribution
+	double accumulator = 0;
+
+	//find the indices of the parents
+	for (int i = 0; i < instance->pop_size; i++) {
+		accumulator += (1 / population[i].best_sol_cost);
+		if ((accumulator >= parent_1_pos) && (parent_1_index == -1))
+			parent_1_index = i;
+		if ((accumulator >= parent_2_pos) && (parent_2_index == -1))
+			parent_2_index = i;
+	}
+	
+#if VERBOSE > 3
+	if ((parent_1_index < 0) || (parent_1_index > instance->pop_size - 1)) { fprintf(stderr, "ERROR: Parent 1 for mating not found\n"); return NULL; }
+	if ((parent_2_index < 0) || (parent_2_index > instance->pop_size - 1)) { fprintf(stderr, "ERROR: Parent 2 for mating not found\n"); return NULL; }
+	printf("Mates: %d and %d\n", parent_1_index, parent_2_index);
+#endif
+
+	//child
+	tsp_instance_t* child = (tsp_instance_t*)malloc(sizeof(tsp_instance_t));
+	if (child == NULL) { fprintf(stderr, "ERROR: Could not allocate child\n"); return NULL; }
+
+	//make child identical to parent 1 (except for the optimal solution)
+	memcpy(child, &population[parent_1_index], sizeof(tsp_instance_t));
+	child->best_sol = (unsigned int*)malloc(instance->num_nodes * sizeof(unsigned int));
+
+	//updated half of the child's best sol with the nodes of parent 1
+	for (int i = 0; i < (instance->num_nodes / 2); i++)
+		child->best_sol[i] = population[parent_1_index].best_sol[i];
+
+	//updated half of the child's best sol with the nodes of parent 2
+	for (int i = (instance->num_nodes / 2); i < instance->num_nodes; i++)
+		child->best_sol[i] = population[parent_2_index].best_sol[i];
+
+	//short-cut child solution (eliminate loops) 
+	bool* visited_nodes = (bool*)malloc(instance->num_nodes * sizeof(bool));
+	for (int i = 0; i < instance->num_nodes; i++)
+		visited_nodes[i] = false;
+	int num_tour_nodes = 0;
+	for (int i = 0; i < instance->num_nodes; i++) {
+		if (!visited_nodes[child->best_sol[i]]) {
+			child->best_sol[num_tour_nodes++] = child->best_sol[i];
+			visited_nodes[child->best_sol[i]] = true;
+		}
+	}
+
+	//fill up the rest of the solution array with the unvisited nodes (used for the in-place greedy alg.)
+	int num_unvisited_nodes = 0;
+	for (int i = 0; i < instance->num_nodes; i++)
+		if (!visited_nodes[i])
+			child->best_sol[num_tour_nodes + num_unvisited_nodes++] = i;
+	if (num_tour_nodes + num_unvisited_nodes != instance->num_nodes) { fprintf(stderr, "ERROR: Total number of nodes not matching\n"); return NULL; }
+
+	//visit the unvisited nodes using the greedy in-place method
+	while (num_unvisited_nodes > 0) {
+		int next_tour_elem_ind = -1;
+		double next_move_cost = DBL_INFY;
+		for (int i = num_tour_nodes; i < instance->num_nodes; i++) {
+			if (lookup_cost(child->best_sol[(num_tour_nodes - 1) % instance->num_nodes], child->best_sol[i], instance) < next_move_cost) {
+				next_tour_elem_ind = i;
+				next_move_cost = lookup_cost(child->best_sol[num_tour_nodes - 1], child->best_sol[next_tour_elem_ind], instance);
+			}
+		}
+		if (next_tour_elem_ind < num_tour_nodes || next_tour_elem_ind >= instance->num_nodes) { fprintf(stderr, "ERROR: Invalid next element index\n"); return NULL; }
+
+#if VERBOSE > 4
+		{ printf("Swapping child->best_sol[%d] = %d with child->best_sol[%d] = %d\n", num_tour_nodes, child->best_sol[num_tour_nodes],
+			next_tour_elem_ind, child->best_sol[next_tour_elem_ind]); }
+#endif
+		swap_uint_array(num_tour_nodes, next_tour_elem_ind, child->best_sol);
+#if VERBOSE > 4
+		{ printf("After swapping child->best_sol[%d] = %d with child->best_sol[%d] = %d\n", num_tour_nodes, child->best_sol[num_tour_nodes],
+			next_tour_elem_ind, child->best_sol[next_tour_elem_ind]); }
+#endif
+		num_tour_nodes++;
+		num_unvisited_nodes--;
+	}
+
+	//update the solution cost
+	double sol_cost = 0.0;
+	for (int i = 0; i < instance->num_nodes; i++) {
+		sol_cost += lookup_cost(child->best_sol[i], child->best_sol[(i + 1) % instance->num_nodes], instance);
+	}
+	child->best_sol_cost = sol_cost;
+
+#if VERBOSE > 8	//check for solution integrity
+	printf("Child cost %f\n", child->best_sol_cost);
+	int* node_deg = (int*)malloc(instance->num_nodes * sizeof(int));
+	for (int i = 0; i < instance->num_nodes; i++) { node_deg[i] = 0; }
+	for (int i = 0; i < instance->num_nodes; i++) { node_deg[child->best_sol[i]]++; node_deg[child->best_sol[(i + 1) % instance->num_nodes]]++; }
+	bool degree_violation = false;
+	for (int i = 0; i < instance->num_nodes; i++) { if (node_deg[i] != 2) degree_violation = true; }
+	if (degree_violation) printf("Degree property violated: MALFORMED CHILD\n"); else printf("Degree property asserted: FEASIBLE CHILD\n");
+	free(node_deg);
+#endif
+
+	free(visited_nodes);
+
+	return child;
+}
+
+static int procreate(tsp_instance_t* population, tsp_instance_t* instance) {
+
+#if VERBOSE > 2
+	{ printf("Generating new population...\n"); }
+#endif
+
+	tsp_instance_t* new_population = (tsp_instance_t*)malloc((instance->pop_size + NUM_CHILDREN) * sizeof(tsp_instance_t));
+	if (new_population == NULL) { printf("Could not allocate memory for the new generation\n"); return 1; }
+	memcpy(new_population, population, instance->pop_size * sizeof(tsp_instance_t));
+
+#if VERBOSE > 8
+	printf("Beginning of procreation\n");
+	printf("population[i]:\n");
+	for (int i = 0; i < instance->pop_size; i++) {
+		printf("0x%p i = %d [ ", &population[i], i);
+		for (int j = 0; j < instance->num_nodes; j++)
+			printf("%d ", population[i].best_sol[j]);
+		printf("]\n");
+	}
+	printf("new_population[i]:\n");
+	for (int i = 0; i < instance->pop_size; i++) {
+		printf("0x%p i = %d [ ", &new_population[i], i);
+		for (int j = 0; j < instance->num_nodes; j++)
+			printf("%d ", new_population[i].best_sol[j]);
+		printf("]\n");
+	}
+#endif
+
+	//cumulative probability of the population (before mating)
+	double pop_cprob = 0;
+	for (int i = 0; i < instance->pop_size; i++)
+		pop_cprob += (1 / new_population[i].best_sol_cost);
+
+	//generated the new population
+	for (int i = 0; i < NUM_CHILDREN; i++) {
+		tsp_instance_t* child = mate(population, instance, pop_cprob);
+		if (child == NULL) { printf("No child returned\n"); return 1; }
+		new_population[instance->pop_size + i] = *(child);
+		free(child);
+
+		if (ref_sol(&new_population[instance->pop_size + i])) { free_tsp_instance(&new_population[instance->pop_size + i]); fprintf(stderr, "Refinement algorithm failed\n"); exit(1); }
+#if VERBOSE > 8
+		{ printf("Solution cost after refinement: %f\n", new_population[instance->pop_size + i].best_sol_cost); }
+#endif
+		//if (plot_tour(&new_population[instance->pop_size + i])) { free_tsp_instance(&new_population[instance->pop_size + i]); fprintf(stderr, "Tour plotting failed\n"); exit(1); }
+
+#if VERBOSE > 6
+		printf("Newly added child, at position %d, has cost %f and is [ ", instance->pop_size + i, new_population[instance->pop_size + i].best_sol_cost);
+		for (int j = 0; j < instance->num_nodes; j++)
+			printf("%d ", new_population[instance->pop_size + i].best_sol[j]);
+		printf("]\n");
+		//plot_tour(&new_population[instance->pop_size + i]);
+#endif
+	}
+
+#if VERBOSE > 8
+	printf("End of procreation, before pruning\n");
+	printf("population[i]:\n");
+	for (int i = 0; i < instance->pop_size; i++) {
+		printf("0x%p i = %d [ ", &population[i], i);
+		for (int j = 0; j < instance->num_nodes; j++)
+			printf("%d ", population[i].best_sol[j]);
+		printf("]\n");
+	}
+	printf("new_population[i]:\n");
+	for (int i = 0; i < instance->pop_size + NUM_CHILDREN; i++) {
+		printf("0x%p i = %d [ ", &new_population[i], i);
+		for (int j = 0; j < instance->num_nodes; j++)
+			printf("%d ", new_population[i].best_sol[j]);
+		printf("]\n");
+	}
+#endif
+
+	//prune the population
+	for (int i = 0; i < instance->pop_size; i++) {
+
+		//cumulative probability of the population (after mating and pruning)
+		double pop_cprob = 0;
+		for (int j = 0; j < instance->pop_size + NUM_CHILDREN - i; j++)
+			pop_cprob += (1 / new_population[j].best_sol_cost);
+
+		//determine the index of the next element to be saved for the next generation
+		double curr_tsp_inst_pos = ((double)rand() / RAND_MAX) * pop_cprob;
+		int curr_tsp_inst_ind = -1;
+		double accumulator = 0;
+		for (int j = 0; j < instance->pop_size + NUM_CHILDREN - i; j++) {
+			accumulator += (1 / new_population[j].best_sol_cost);
+			if (accumulator >= curr_tsp_inst_pos) {
+				curr_tsp_inst_ind = j;
+				break;
+			}
+		}
+		if ((curr_tsp_inst_ind < 0) || (curr_tsp_inst_ind > instance->pop_size + NUM_CHILDREN - 1 - i)) { printf("Pruning population out of bound\n"); return 1; }
+
+		//add the instance to be saved to the population and update the new population array
+		population[i] = new_population[curr_tsp_inst_ind];
+		new_population[curr_tsp_inst_ind] = new_population[instance->pop_size + NUM_CHILDREN - 1 - i];
+
+#if VERBOSE > 8
+		{ printf("Pruning step: population[%d] = new_population[%d], new_population[%d] = new_population[%d]\n", i, curr_tsp_inst_ind, curr_tsp_inst_ind, 
+			instance->pop_size + NUM_CHILDREN - 1 - i); }
+#endif
+	}
+
+#if VERBOSE > 8
+	printf("End of procreation, after pruning\n");
+	printf("population[i]:\n");
+	for (int i = 0; i < instance->pop_size; i++) {
+		printf("0x%p i = %d [ ", &population[i], i);
+		for (int j = 0; j < instance->num_nodes; j++)
+			printf("%d ", population[i].best_sol[j]);
+		printf("]\n");
+	}
+	printf("new_population[i]:\n");
+	for (int i = 0; i < instance->pop_size + NUM_CHILDREN; i++) {
+		printf("0x%p i = %d [ ", &new_population[i], i);
+		for (int j = 0; j < instance->num_nodes; j++)
+			printf("%d ", new_population[i].best_sol[j]);
+		printf("]\n");
+	}
+#endif
+
+	//eliminate the instances that were not selected
+	for (int i = 0; i < NUM_CHILDREN; i++)
+		free(new_population[i].best_sol);
+	free(new_population);
+
+	return 0;
+}
+
+static void update_champion(tsp_instance_t* population, tsp_instance_t* instance) {
+
+	printf("Current champion cost: %f", instance->best_sol_cost);
+	for (int i = 0; i < instance->pop_size; i++) {
+		if (population[i].best_sol_cost < instance->best_sol_cost) {
+			memcpy(instance->best_sol, population[i].best_sol, instance->num_nodes * sizeof(unsigned int));
+			instance->best_sol_cost = population[i].best_sol_cost;
+		}
+	}
+	printf("; new champion cost: %f\n", instance->best_sol_cost);
+	//makes sure that the champion from the previous iteration is present in the current iteration
+	memcpy(population[0].best_sol, instance->best_sol, instance->num_nodes * sizeof(unsigned int));
+	population[0].best_sol_cost = instance->best_sol_cost;
+}
+
 int genetic(tsp_instance_t* instance) {
 
 	srand(instance->random_seed); for (int i = 0; i < MIN_RAND_RUNS + log(1 + instance->random_seed); i++) rand();
@@ -1201,20 +1463,55 @@ int genetic(tsp_instance_t* instance) {
 		//if (plot_tour(instance)) { free_tsp_instance(instance); fprintf(stderr, "Tour plotting failed\n"); exit(1); }
 	}
 
+#if VERBOSE > 8
+	printf("Population initialized\n");
+	printf("population[i]:\n");
+	for (int i = 0; i < instance->pop_size; i++) {
+		printf("0x%p i = %d [ ", &population[i], i);
+		for (int j = 0; j < instance->num_nodes; j++)
+			printf("%d ", population[i].best_sol[j]);
+		printf("]\n");
+	}
+#endif
+
 	update_champion(population, instance);
 
+#if VERBOSE > 8
+	printf("Population after champion update\n");
+	printf("population[i]:\n");
+	for (int i = 0; i < instance->pop_size; i++) {
+		printf("0x%p i = %d [ ", &population[i], i);
+		for (int j = 0; j < instance->num_nodes; j++)
+			printf("%d ", population[i].best_sol[j]);
+		printf("]\n");
+	}
+#endif
+
+	int generations = 0;
 	while (instance->time_left > 0) {
 		
 		double start_time = seconds();
 
 		if (procreate(population, instance)) { printf("Procreation failed, aborting...\n"); return 1; }
 		update_champion(population, instance);
+		generations++;
+
+#if VERBOSE > 8
+		printf("Population after champion update\n");
+		printf("population[i]:\n");
+		for (int i = 0; i < instance->pop_size; i++) {
+			printf("0x%p i = %d [ ", &population[i], i);
+			for (int j = 0; j < instance->num_nodes; j++)
+				printf("%d ", population[i].best_sol[j]);
+			printf("]\n");
+		}
+#endif
 
 		double end_time = seconds();
 		instance->time_left -= (end_time - start_time);
 
-#if VERBOSE > 2
-		{ if (instance->time_left <= 0) printf("Time limit reached in the generic algorithm...\n"); }
+#if VERBOSE > 1
+		{ if (instance->time_left <= 0) printf("Time limit reached in the generic algorithm, %d generations executed...\n", generations); }
 #endif
 	}
 
@@ -1223,192 +1520,6 @@ int genetic(tsp_instance_t* instance) {
 	free(population);
 
 	return 0;
-}
-
-static void update_champion(tsp_instance_t* population, tsp_instance_t* instance) {
-
-	printf("Current champion cost: %f", instance->best_sol_cost);
-	for (int i = 0; i < instance->pop_size; i++) {
-		if (population[i].best_sol_cost < instance->best_sol_cost) {
-			memcpy(instance->best_sol, population[i].best_sol, instance->num_nodes * sizeof(unsigned int));
-			instance->best_sol_cost = population[i].best_sol_cost;
-		}
-	}
-	printf(". New champion cost: %f\n", instance->best_sol_cost);
-	//make sure that the champion from the previous iteration is present in the current iteration
-	memcpy(population[0].best_sol, instance->best_sol, instance->num_nodes * sizeof(unsigned int));
-	population[0].best_sol_cost = instance->best_sol_cost;
-}
-
-static int procreate(tsp_instance_t* population, tsp_instance_t* instance) {
-
-#if VERBOSE > 2
-	{ printf("Generating new population...\n"); }
-#endif
-
-	tsp_instance_t* new_population = (tsp_instance_t*)malloc((instance->pop_size + NUM_CHILDREN) * sizeof(unsigned int));
-	if (new_population == NULL) { printf("Could not allocate memory for the new generation\n"); return 1; }
-	memcpy(new_population, population, instance->pop_size * sizeof(tsp_instance_t));
-
-	//cumulative probability of the population (before mating)
-	double pop_cprob = 0;
-	for (int i = 0; i < instance->pop_size; i++)
-		pop_cprob += (1 / new_population[i].best_sol_cost);
-
-	//generated the new population
-	for (int i = 0; i < NUM_CHILDREN; i++) {
-		tsp_instance_t* child = mate(population, instance, pop_cprob);
-		if (child == NULL) { printf("No child returned\n"); return 1; }
-		new_population[instance->pop_size + i] = *(child);
-		free(child);
-	}
-
-	//prune the population
-	for (int i = 0; i < instance->pop_size; i++) {
-
-		//cumulative probability of the population (after mating and pruning)
-		double pop_cprob = 0;
-		for (int j = 0; j < instance->pop_size + NUM_CHILDREN - i; j++)
-			pop_cprob += (1 / new_population[j].best_sol_cost);
-
-		//determine the index of the next element to be saved for the next generation
-		double curr_tsp_inst_pos = ((double)rand() / RAND_MAX) * pop_cprob;
-		int curr_tsp_inst_ind = -1;
-		double accumulator = 0;
-		for (int j = 0; j < instance->pop_size + NUM_CHILDREN - i; j++) {
-			accumulator += (1 / new_population[j].best_sol_cost);
-			if (accumulator >= curr_tsp_inst_pos) {
-				curr_tsp_inst_ind = j;
-				break;
-			}
-		}
-		if ((curr_tsp_inst_ind < 0) || (curr_tsp_inst_ind > instance->pop_size + NUM_CHILDREN - 1 - i)) { printf("Pruning population out of bound\n"); return 1; }
-
-		//add the instance to be saved to the population and update the new population array
-		population[i] = new_population[curr_tsp_inst_ind];
-		new_population[curr_tsp_inst_ind] = new_population[instance->pop_size + NUM_CHILDREN - 1 - i];
-	}
-
-	//eliminate the instances that were not selected
-	for (int i = 0; i < NUM_CHILDREN; i++)
-		free(new_population[i].best_sol);
-	free(new_population);
-
-	return 0;
-}
-
-static tsp_instance_t* mate(tsp_instance_t* population, tsp_instance_t* instance, double pop_cprob) {
-
-#if VERBOSE > 3
-	{ printf("Mateing...\n"); }
-#endif
-
-	//generate random number that will determine the indices od the 2 parents
-	double parent_1_pos = ((double)rand() / RAND_MAX) * pop_cprob;
-	double parent_2_pos = ((double)rand() / RAND_MAX) * pop_cprob;
-	
-	//population indices of the 2 parents
-	int parent_1_index = -1;
-	int parent_2_index = -1;
-
-	//accumulates the probability distribution
-	double accumulator = 0;
-
-	//find the indices of the parents
-	for (int i = 0; i < instance->pop_size; i++) {
-		accumulator += (1 / population[i].best_sol_cost);
-		if ((accumulator >= parent_1_pos) && (parent_1_index == -1))
-			parent_1_index = i;
-		if ((accumulator >= parent_2_pos) && (parent_2_index == -1))
-			parent_2_index = i;
-	}
-	if (parent_1_index == -1) { fprintf(stderr, "ERROR: Parent 1 for mating not found\n"); return NULL; }
-	if (parent_2_index == -1) { fprintf(stderr, "ERROR: Parent 2 for mating not found\n"); return NULL; }
-
-#if VERBOSE > 3
-	{ printf("Mates: %d and $d\n", parent_1_index, parent_2_index); }
-#endif
-
-	//child
-	tsp_instance_t* child = (tsp_instance_t*)malloc(sizeof(tsp_instance_t));
-	if (child == NULL) { fprintf(stderr, "ERROR: Could not allocate child\n"); return NULL; }
-	
-	//make child identical to parent 1 (except for the optimal solution)
-	memcpy(child, &population[parent_1_index], sizeof(tsp_instance_t));
-	child->best_sol = (unsigned int*)malloc(instance->num_nodes * sizeof(unsigned int));
-
-	//updated half of the child's best sol with the nodes of parent 1
-	for (int i = 0; i < (instance->num_nodes / 2); i++)
-		child->best_sol[i] = population[parent_1_index].best_sol[i];
-
-	//updated half of the child's best sol with the nodes of parent 2
-	for (int i = (instance->num_nodes / 2); i < instance->num_nodes; i++)
-		child->best_sol[i] = population[parent_2_index].best_sol[i];
-
-	//short-cut child solution (eliminate loops) 
-	bool* visited_nodes = (bool*)malloc(instance->num_nodes * sizeof(bool));
-	for (int i = 0; i < instance->num_nodes; i++)
-		visited_nodes[i] = false;
-	int num_tour_nodes = 0;
-	for (int i = 0; i < instance->num_nodes; i++) {
-		if (!visited_nodes[child->best_sol[i]]) {
-			child->best_sol[num_tour_nodes++] = child->best_sol[i];
-			visited_nodes[child->best_sol[i]] = true;
-		}
-	}
-
-	//fill up the rest of the solution array with the unvisited nodes (used for the in-place greedy alg.)
-	int num_unvisited_nodes = 0;
-	for (int i = 0; i < instance->num_nodes; i++)
-		if (!visited_nodes[i])
-			child->best_sol[num_tour_nodes + num_unvisited_nodes++] = i;
-	if (num_tour_nodes + num_unvisited_nodes != instance->num_nodes) { fprintf(stderr, "ERROR: Total number of nodes not matching\n"); return NULL; }
-
-	//visit the unvisited nodes using the greedy in-place method
-	while (num_unvisited_nodes > 0) {
-		int next_tour_elem_ind = -1;
-		double next_move_cost = DBL_INFY;
-		for (int i = num_tour_nodes; i < instance->num_nodes; i++) {
-			if (lookup_cost(child->best_sol[num_tour_nodes - 1], child->best_sol[i], instance) < next_move_cost) {
-				next_tour_elem_ind = i;
-				next_move_cost = lookup_cost(child->best_sol[num_tour_nodes - 1], child->best_sol[next_tour_elem_ind], instance);
-			}
-		}
-		if (next_tour_elem_ind < 0 || next_tour_elem_ind >= instance->num_nodes) { fprintf(stderr, "ERROR: Invalid next element index\n"); return NULL; }
-
-#if VERBOSE > 4
-		{ printf("Swapping child->best_sol[%d] = %d with child->best_sol[%d] = %d\n", num_tour_nodes, child->best_sol[num_tour_nodes], 
-			next_tour_elem_ind, child->best_sol[next_tour_elem_ind]); }
-#endif
-		swap_uint_array(num_tour_nodes, next_tour_elem_ind, child->best_sol);
-#if VERBOSE > 4
-		{ printf("After swapping child->best_sol[%d] = %d with child->best_sol[%d] = %d\n", num_tour_nodes, child->best_sol[num_tour_nodes],
-			next_tour_elem_ind, child->best_sol[next_tour_elem_ind]); }
-#endif
-		num_tour_nodes++;
-		num_unvisited_nodes--;
-	}
-
-	//update the solution cost
-	double sol_cost = 0.0;
-	for (int i = 0; i < instance->num_nodes; i++) {
-		sol_cost += lookup_cost(child->best_sol[i], child->best_sol[(i + 1) % instance->num_nodes], instance);
-	}
-	child->best_sol_cost = sol_cost;
-
-#if VERBOSE > 8	//check for solution integrity
-	int* node_deg = (int*)malloc(instance->num_nodes * sizeof(int));
-	for (int i = 0; i < instance->num_nodes; i++) { node_deg[i] = 0; }
-	for (int i = 0; i < instance->num_nodes; i++) { node_deg[child->best_sol[i]]++; node_deg[child->best_sol[(i + 1) % instance->num_nodes]]++; }
-	bool degree_violation = false;
-	for (int i = 0; i < instance->num_nodes; i++) { if (node_deg[i] != 2) degree_violation = true; }
-	if (degree_violation) printf("Degree property violated: MALFORMED CHILD\n"); else printf("Degree property asserted: FEASIBLE CHILD\n");
-	free(node_deg);
-#endif
-
-	free(visited_nodes);
-
-	return child;
 }
 
 int plot_tour(tsp_instance_t* instance) {
