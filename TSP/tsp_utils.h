@@ -16,7 +16,7 @@
 #include <assert.h>
 
 //need to figure out why -UVERBOSE does not undefine the macro
-#define VERBOSE 0
+#define VERBOSE 1
 
 #define OMP_NUM_THREADS 4
 

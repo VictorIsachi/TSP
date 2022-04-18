@@ -1160,8 +1160,8 @@ static tsp_instance_t* mate(tsp_instance_t* population, tsp_instance_t* instance
 #endif
 
 	//generate random number that will determine the indices od the 2 parents
-	double parent_1_pos = ((double)rand() / RAND_MAX) * pop_cprob;
-	double parent_2_pos = ((double)rand() / RAND_MAX) * pop_cprob;
+	double parent_1_pos = ((double)rand() / (RAND_MAX + 1)) * pop_cprob;
+	double parent_2_pos = ((double)rand() / (RAND_MAX + 1)) * pop_cprob;
 
 	//population indices of the 2 parents
 	int parent_1_index = -1;
@@ -1173,13 +1173,13 @@ static tsp_instance_t* mate(tsp_instance_t* population, tsp_instance_t* instance
 	//find the indices of the parents
 	for (int i = 0; i < instance->pop_size; i++) {
 		accumulator += (1 / population[i].best_sol_cost);
-		if ((accumulator >= parent_1_pos) && (parent_1_index == -1))
+		if ((accumulator > parent_1_pos) && (parent_1_index == -1))
 			parent_1_index = i;
-		if ((accumulator >= parent_2_pos) && (parent_2_index == -1))
+		if ((accumulator > parent_2_pos) && (parent_2_index == -1))
 			parent_2_index = i;
 	}
 	
-#if VERBOSE > 3
+#if VERBOSE > 2
 	if ((parent_1_index < 0) || (parent_1_index > instance->pop_size - 1)) { fprintf(stderr, "ERROR: Parent 1 for mating not found\n"); return NULL; }
 	if ((parent_2_index < 0) || (parent_2_index > instance->pop_size - 1)) { fprintf(stderr, "ERROR: Parent 2 for mating not found\n"); return NULL; }
 	printf("Mates: %d and %d\n", parent_1_index, parent_2_index);
@@ -1344,18 +1344,18 @@ static int procreate(tsp_instance_t* population, tsp_instance_t* instance) {
 	//prune the population
 	for (int i = 0; i < instance->pop_size; i++) {
 
-		//cumulative probability of the population (after mating and pruning)
+		//cumulative probability of the population (after mating, during pruning)
 		double pop_cprob = 0;
 		for (int j = 0; j < instance->pop_size + NUM_CHILDREN - i; j++)
-			pop_cprob += (1 / new_population[j].best_sol_cost);
+			pop_cprob += new_population[j].best_sol_cost;
 
 		//determine the index of the next element to be saved for the next generation
-		double curr_tsp_inst_pos = ((double)rand() / RAND_MAX) * pop_cprob;
+		double curr_tsp_inst_pos = ((double)rand() / (RAND_MAX + 1)) * pop_cprob;
 		int curr_tsp_inst_ind = -1;
 		double accumulator = 0;
 		for (int j = 0; j < instance->pop_size + NUM_CHILDREN - i; j++) {
-			accumulator += (1 / new_population[j].best_sol_cost);
-			if (accumulator >= curr_tsp_inst_pos) {
+			accumulator += new_population[j].best_sol_cost;
+			if (accumulator > curr_tsp_inst_pos) {
 				curr_tsp_inst_ind = j;
 				break;
 			}
@@ -1400,17 +1400,23 @@ static int procreate(tsp_instance_t* population, tsp_instance_t* instance) {
 
 static void update_champion(tsp_instance_t* population, tsp_instance_t* instance) {
 
-	printf("Current champion cost: %f", instance->best_sol_cost);
+#if VERBOSE > 0
+	{ printf("Current champion cost: %f", instance->best_sol_cost); }
+#endif
+
 	for (int i = 0; i < instance->pop_size; i++) {
 		if (population[i].best_sol_cost < instance->best_sol_cost) {
 			memcpy(instance->best_sol, population[i].best_sol, instance->num_nodes * sizeof(unsigned int));
 			instance->best_sol_cost = population[i].best_sol_cost;
 		}
 	}
-	printf("; new champion cost: %f\n", instance->best_sol_cost);
 	//makes sure that the champion from the previous iteration is present in the current iteration
 	memcpy(population[0].best_sol, instance->best_sol, instance->num_nodes * sizeof(unsigned int));
 	population[0].best_sol_cost = instance->best_sol_cost;
+
+#if VERBOSE > 0
+	{ printf("; new champion cost: %f\n", instance->best_sol_cost); }
+#endif
 }
 
 int genetic(tsp_instance_t* instance) {
@@ -1510,7 +1516,7 @@ int genetic(tsp_instance_t* instance) {
 		double end_time = seconds();
 		instance->time_left -= (end_time - start_time);
 
-#if VERBOSE > 1
+#if VERBOSE > 0
 		{ if (instance->time_left <= 0) printf("Time limit reached in the generic algorithm, %d generations executed...\n", generations); }
 #endif
 	}
