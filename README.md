@@ -39,6 +39,6 @@ You can also specify the following command line arguments:
 -the 2-opt refinement procedure
 -tabu search meta-heuristic
 -VNS (5-kick) meta-heuristic
--simulated annealing
--genetic algorithm
+-simulated annealing meta-heuristic
+-genetic algorithm meta-heuristic
 ```
