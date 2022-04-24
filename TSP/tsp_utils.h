@@ -4,19 +4,10 @@
 //uncomment to disable assertions
 // #define NDEBUG
 
-//might be usefull in the future
-// #define LOOP for(;;)
-// #define GENERIC_FUNC(out_type, in_type, func_name)       \
-// out_type in_type##_##func_name(in_type x, in_type y){    \
-//  /*func body*/                                       \
-// }                                                        \
-// 
-// inline int max_int(int a, int b) { return a < b ? b : a; }
-
 #include <assert.h>
 
 //need to figure out why -UVERBOSE does not undefine the macro
-#define VERBOSE 1
+#define VERBOSE 3
 
 #define OMP_NUM_THREADS 4
 
@@ -49,5 +40,12 @@ void swap_uint_array(unsigned int a, unsigned int b, unsigned int array[]);
  * @return a - b
  */
 int cmp_int(const void* a, const void* b);
+
+/**
+ * @brief prints an error message and the error code (if any), then terminates execution
+ * @param error_message the message to be displayed
+ * @param error_code the code error, if 0 then no error code will be displayed
+ */
+void print_error(const char* error_message, const int error_code);
 
 #endif //TSP_UTILS_H

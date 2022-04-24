@@ -14,3 +14,12 @@ void swap_uint_array(unsigned int a, unsigned int b, unsigned int array[]) {
 int cmp_int(const void* a, const void* b) {
 	return (*(int*)a - *(int*)b);
 }
+
+void print_error(const char* error_message, const int error_code) {
+	if (error_code)
+		printf("\n\n ERROR(code %d): %s \n\n", error_code, error_message);
+	else
+		printf("\n\n ERROR: %s \n\n", error_message);
+	fflush(NULL);
+	exit(1);
+}

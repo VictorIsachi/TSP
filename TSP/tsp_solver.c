@@ -31,7 +31,7 @@ static void first_try_sol(tsp_instance_t* instance) {
 }
 
 static void genetic_procedure(tsp_instance_t* instance) {
-	//first try solution
+	//genetic procedure
 	if (tsp_opt(instance)) { free_tsp_instance(instance); fprintf(stderr, "Optimization algorithm failed\n"); exit(1); }
 	printf("Solution cost: %f\n", instance->best_sol_cost);
 	if (plot_tour(instance)) { free_tsp_instance(instance); fprintf(stderr, "Tour plotting failed\n"); exit(1); }
@@ -49,6 +49,11 @@ static void cont_search(tsp_instance_t* instance) {
 	printf("Time limit reached...\n");
 	printf("Solution cost: %f\n", instance->best_sol_cost);
 	if (plot_tour(instance)) { free_tsp_instance(instance); fprintf(stderr, "Tour plotting failed\n"); exit(1); }
+}
+
+static void cplex_sol(tsp_instance_t* instance) {
+	//cplex solution
+	if (TSPopt(instance)) { free_tsp_instance(instance); fprintf(stderr, "Optimization algorithm failed\n"); exit(1); }
 }
 
 //chap. 2.3 
@@ -1182,23 +1187,29 @@ int main(int argc, char const* argv[]) {
 
 	double beg_time = seconds();
 
-	////uncomment for best solution at first try////
+	//////uncomment for best solution at first try////
+	//tsp_instance_t instance;
+	//set_up_tsp_instance(argc, argv, &instance);
+	//first_try_sol(&instance);
+	//free_tsp_instance(&instance);
+
+	//////uncomment for searching until time runs out////
+	//tsp_instance_t instance;
+	//set_up_tsp_instance(argc, argv, &instance);
+	//cont_search(&instance);
+	//free_tsp_instance(&instance);
+
+	//////uncomment for the genetic algorithm instance (does not refine)////
+	//tsp_instance_t instance;
+	//set_up_tsp_instance(argc, argv, &instance);
+	//genetic_procedure(&instance);
+	//free_tsp_instance(&instance);
+
+	////uncomment for method using cplex////
 	tsp_instance_t instance;
 	set_up_tsp_instance(argc, argv, &instance);
-	first_try_sol(&instance);
+	cplex_sol(&instance);
 	free_tsp_instance(&instance);
-
-	////uncomment for searching until time runs out////
-	/*tsp_instance_t instance;
-	set_up_tsp_instance(argc, argv, &instance);
-	cont_search(&instance);
-	free_tsp_instance(&instance);*/
-
-	////uncomment for the genetic algorithm instance (does not refine)////
-	/*tsp_instance_t instance;
-	set_up_tsp_instance(argc, argv, &instance);
-	genetic_procedure(&instance);
-	free_tsp_instance(&instance);*/
 
 	////uncomment for perf prof of chap 2.3////
 	//comp_methods_1();

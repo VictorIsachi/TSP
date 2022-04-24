@@ -2,6 +2,14 @@
 #define TSP_H
 
 #include <float.h>
+#include <string.h>
+#include <omp.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <math.h>
+#include <stdbool.h>
+#include <cplex.h>
 
 #define MAX_TIME DBL_MAX
 #define DBL_INFY DBL_MAX
@@ -58,6 +66,8 @@ typedef struct tsp_instance {
 	double* costs;
 	double time_left;
 	unsigned int* tabu_list;
+	unsigned int num_cycles;
+	unsigned int cycle_delimiter;
 } tsp_instance_t;
 
 /**
@@ -176,5 +186,40 @@ int two_opt_ref(tsp_instance_t* instance);
  * @return 0 if no error was detected, a non-0 value otherwise
  */
 int genetic(tsp_instance_t* instance);
+
+/**
+ * @brief builds the basinc MILP TSP model (cost, degree constraints and variable type) based on the nodes found in instance->nodes[]
+ * @param instance the tsp instance based on whose nodes the model will be created
+ * @param env CPLEX environment
+ * @param lp CPLEX linear program
+ */
+void build_model(tsp_instance_t* instance, CPXENVptr env, CPXLPptr lp);
+
+/**
+ * @brief plots the cycles found in instance->best_sol[]
+ * @param instance the tsp instance whose cycles will be ploted
+ * @return 0 if no error was detected, a non-0 value otherwise 
+ */
+int plot_cycles(tsp_instance_t* instance);
+
+/**
+ * @brief iterate over the found solutions until a feasible solution is found (only one connected component)
+ * @param instance the tsp instance, must already contain a solution
+ * @param env CPLEX environment
+ * @param lp CPLEX linear program
+ * @param xstar pointer to the solution found using CPLEX
+ * @param succ successor list of the solution
+ * @param comp component list of the solution
+ * @param visited_nodes list of visited nodes of the solution
+ * @param num_cycles number of connected components
+ */
+void benders_method(tsp_instance_t* instance, CPXENVptr env, CPXLPptr lp, double** xstar, int* succ, int* comp, bool* visited_nodes, int* num_cycles);
+
+/**
+ * @brief build and optimize the tsp model based on the CPLEX library
+ * @param instance the tsp instance whose model will be built and solved
+ * @return 0 if no error was detected, a non-0 value otherwise 
+ */
+int TSPopt(tsp_instance_t* instance);
 
 #endif //TSP_H
