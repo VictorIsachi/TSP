@@ -751,7 +751,7 @@ int two_opt_ref(tsp_instance_t* instance) {
 				memcpy(instance->best_sol, current_sol, instance->num_nodes * sizeof(unsigned int));
 				instance->best_sol_cost = current_sol_cost;
 
-#if VERBOSE > 2
+#if VERBOSE > 3
 				{ printf("Solution cost %f\n", instance->best_sol_cost); for (int i = 0; i < instance->num_nodes; i++) 
 					printf("Element of index %d of the tour is the node of index %d [%f, %f]\n", i, instance->best_sol[i],
 						instance->nodes[instance->best_sol[i]].x_coord, instance->nodes[instance->best_sol[i]].y_coord); }
