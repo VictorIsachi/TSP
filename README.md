@@ -41,4 +41,5 @@ You can also specify the following command line arguments:
 -VNS (5-kick) meta-heuristic
 -simulated annealing meta-heuristic
 -genetic algorithm meta-heuristic
+-Benders' method using CPLEX
 ```
