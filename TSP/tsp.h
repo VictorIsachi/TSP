@@ -28,6 +28,9 @@
 #define SIM_ANNEAL 4
 #define GEN 5
 
+#define BENDERS 1
+#define CALLBACK 2
+
 #define MIN_RAND_RUNS 1000
 
 #define DIST_INDEX(i, j, n) ((j) - 1 + (i) * ((n) - 1) - ((i) * ((i) + 1)) / 2)
@@ -59,6 +62,7 @@ typedef struct tsp_instance {
 	int max_temperature;
 	unsigned int move_weight;
 	unsigned int pop_size;
+	unsigned int cplex_solver_flag;
 
 	//instance local data
 	unsigned int* best_sol;	//indices of the nodes[] in the tour order, it might be better to put this variable into a critical region to guarantee atomicity

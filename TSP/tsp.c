@@ -32,6 +32,7 @@ int parse_command_line(const int argc, const char* argv[], tsp_instance_t* insta
 	instance->max_temperature = -1;
 	instance->move_weight = 25;
 	instance->pop_size = 100;
+	instance->cplex_solver_flag = BENDERS;
 
 	int help = 0;
 	if (argc < 1) help = 1;
@@ -54,6 +55,7 @@ int parse_command_line(const int argc, const char* argv[], tsp_instance_t* insta
 		if (strcmp(argv[i], "-max_temp") == 0) { instance->max_temperature = atoi(argv[++i]); continue; }				// the maximum temperature (simulated annealing)
 		if (strcmp(argv[i], "-move_weight") == 0) { instance->move_weight = atoi(argv[++i]); continue; }				// used to determine p. acceptance (simulated annealing)
 		if (strcmp(argv[i], "-pop_size") == 0) { instance->pop_size = atoi(argv[++i]); continue; }						// population size (genetic algorithm)
+		if (strcmp(argv[i], "-cplex_flag") == 0) { instance->cplex_solver_flag = atoi(argv[++i]); continue; }			// flag indicating the cplex solving method
 		if (strcmp(argv[i], "-help") == 0) { help = 1; continue; } 													    // help
 		if (strcmp(argv[i], "--help") == 0) { help = 1; continue; } 													// help
 		help = 1;
@@ -87,6 +89,7 @@ int parse_command_line(const int argc, const char* argv[], tsp_instance_t* insta
 		printf("-max_temp %d (the maximum temperature (simulated annealing))\n", instance->max_temperature);
 		printf("-move_weight %d (scaling factor used to determine the probability of acceptance (simulated annealing))\n", instance->move_weight);
 		printf("-pop_size %d (population size (genetic algorithm))\n", instance->pop_size);
+		printf("-cplex_flag %d (1: BENDERS; 2: CALLBACK)\n", instance->cplex_solver_flag);
 		printf("\nenter -help or --help for help\n");
 		printf("----------------------------------------------------------------------------------------------\n\n");
 	}
