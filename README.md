@@ -23,6 +23,7 @@ You can also specify the following command line arguments:
 - `-max_temp` **int**: specifies the maximum temperature, must be **>= min_temperature**. If not specified will be initialized to 100. If specified must also specify `-min_temperature`.
 - `-move_weight` **unsigned int**: specifies the weight used in the computation of the probability of the simulated annealing move. By default set to 25.
 - `-pop_size` **unsigned int**: specifies the population size used by the genetic algorithm. By default set to 100.
+- `-cplex_flag` **1 | 2**: specifies the cplex strategy used to obtain the solution. 1 = Benders' method, 2 = callbacks. By default set to 1.
 
 ## List of implemented features
 ```
@@ -42,4 +43,5 @@ You can also specify the following command line arguments:
 -simulated annealing meta-heuristic
 -genetic algorithm meta-heuristic
 -Benders' method using CPLEX
+-callback method using CPLEX
 ```
