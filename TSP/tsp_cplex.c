@@ -621,13 +621,15 @@ static void patch_and_update_tsp_best_sol(tsp_instance_t* instance, CPXENVptr en
 	free(local_comp);
 }
 
-static void add_sec_and_patch_update_tsp_best_sol(tsp_instance_t* instance, CPXENVptr env, CPXLPptr lp, int ncols, const int* succ, 
+static void add_sec_and_patch_update_tsp_best_sol(tsp_instance_t* instance, CPXENVptr env, CPXLPptr lp, CPXCALLBACKCONTEXTptr context, int ncols, const int* succ,
 	const int* comp, int num_cycles, const unsigned int cycle_delimiter, int iteration) {
-	printf("Patching the cycles, adding SEC constraints and updating best solution...\n");
+#if VERBOSE > 1
+		{ printf("Patching the cycles, adding SEC constraints and updating best solution...\n"); }
+#endif
 	
 	//adding the single cycle SECs
 	if (num_cycles > 1)
-		add_single_cycle_secs(instance, env, lp, NULL, comp, iteration, num_cycles, ncols);
+		add_single_cycle_secs(instance, env, lp, context, comp, iteration, num_cycles, ncols);
 	
 	//TO BE DELETED
 	/*
@@ -645,7 +647,12 @@ static void add_sec_and_patch_update_tsp_best_sol(tsp_instance_t* instance, CPXE
 		add_sec(instance, env, lp, NULL, index, coeff, comp, cname, iteration, k);
 	*/
 
-	patch_and_update_tsp_best_sol(instance, env, lp, ncols,succ, comp, num_cycles, cycle_delimiter, iteration, true);
+	if (env != NULL && lp != NULL & context == NULL)
+		patch_and_update_tsp_best_sol(instance, env, lp, ncols, succ, comp, num_cycles, cycle_delimiter, iteration, true);
+	else if (env == NULL && lp == NULL & context != NULL)
+		patch_and_update_tsp_best_sol(instance, env, lp, ncols, succ, comp, num_cycles, cycle_delimiter, iteration, false);
+	else
+		print_error("add_sec_and_patch_update_tsp_best_sol() unrecognized operation", 0);
 
 	//TO BE DELETED
 	/*
@@ -730,7 +737,14 @@ static void add_sec_and_patch_update_tsp_best_sol(tsp_instance_t* instance, CPXE
 
 static int CPXPUBLIC cplex_callback(CPXCALLBACKCONTEXTptr context, CPXLONG contextid, void* userhandle) {
 	tsp_instance_t* instance = (tsp_instance_t*)userhandle;
-	int sol_cardinality = ((instance->num_nodes) * (instance->num_nodes - 1)) / 2;
+
+	//instance on which the pached solution will be computed
+	tsp_instance_t local_instance;
+	memcpy(&local_instance, instance, sizeof(tsp_instance_t));
+	local_instance.best_sol = (unsigned int*)malloc((local_instance.num_nodes + local_instance.num_cycles)*sizeof(unsigned int));
+	memcpy(local_instance.best_sol, instance->best_sol, (local_instance.num_nodes + local_instance.num_cycles) * sizeof(unsigned int));
+
+	int sol_cardinality = ((local_instance.num_nodes) * (local_instance.num_nodes - 1)) / 2;
 	double* xstar = (double*)malloc(sol_cardinality * sizeof(double));
 	double objval = CPX_INFBOUND;
 	if (CPXcallbackgetcandidatepoint(context, xstar, 0, sol_cardinality - 1, &objval)) print_error("CPXcallbackgetcandidatepoint() error", 0);
@@ -743,14 +757,27 @@ static int CPXPUBLIC cplex_callback(CPXCALLBACKCONTEXTptr context, CPXLONG conte
 	{ printf("callback at node %d, thread %d, incumbent %.3lf\n", mynode, mythread, incumbent); }
 #endif
 
-	int* succ = (int*)malloc(instance->num_nodes * sizeof(int)); if (succ == NULL) print_error("Could not allocate succ[]", 0);
-	int* comp = (int*)malloc(instance->num_nodes * sizeof(int)); if (comp == NULL) print_error("Could not allocate comp[]", 0);
-	bool* visited_nodes = (bool*)malloc(instance->num_nodes * sizeof(bool)); if (visited_nodes == NULL) print_error("Could not allocate visited_nodes[]", 0);
+	//instance data structures
+	int* succ = (int*)malloc(local_instance.num_nodes * sizeof(int)); if (succ == NULL) print_error("Could not allocate succ[]", 0);
+	int* comp = (int*)malloc(local_instance.num_nodes * sizeof(int)); if (comp == NULL) print_error("Could not allocate comp[]", 0);
+	bool* visited_nodes = (bool*)malloc(local_instance.num_nodes * sizeof(bool)); if (visited_nodes == NULL) print_error("Could not allocate visited_nodes[]", 0);
 	int num_cycles;
-	build_model_ds(instance, xstar, succ, comp, visited_nodes, &num_cycles);
-	//adding the single cycle SECs
-	if (num_cycles > 1)
-		add_single_cycle_secs(instance, NULL, NULL, context, comp, -1, num_cycles, sol_cardinality);
+	build_model_ds(&local_instance, xstar, succ, comp, visited_nodes, &num_cycles);
+	
+	//get the pached and refined solution
+	add_sec_and_patch_update_tsp_best_sol(&local_instance, NULL, NULL, context, sol_cardinality, succ, comp, num_cycles, local_instance.num_nodes, -1);
+
+	//post the solution
+	double* xheur = (double*)calloc(sol_cardinality, sizeof(double));  // all zeros, initially
+	if (xheur == NULL) print_error("cplex_callback() could not allocate memory for xheur[]", 0);
+	else	//translate the solution in the CPLEX format
+		for (int i = 0; i < local_instance.num_nodes; i++)
+			xheur[xpos(local_instance.best_sol[i], local_instance.best_sol[(i + 1) % local_instance.num_nodes], &local_instance)] = 1.0;
+	int* ind = (int*)malloc(sol_cardinality * sizeof(int));
+	for (int j = 0; j < sol_cardinality; j++) ind[j] = j;
+	if (CPXcallbackpostheursoln(context, sol_cardinality, ind, xheur, local_instance.best_sol_cost, CPXCALLBACKSOLUTION_NOCHECK)) print_error("CPXcallbackpostheursoln() error", 0);
+	free(ind);
+	free(xheur);
 
 	//TO BE DELETED
 	/*
@@ -771,6 +798,7 @@ static int CPXPUBLIC cplex_callback(CPXCALLBACKCONTEXTptr context, CPXLONG conte
 	free(cname);
 	*/
 
+	free(local_instance.best_sol);
 	free(xstar);
 	free(succ);
 	free(comp);
@@ -797,6 +825,16 @@ static int CPXPUBLIC cplex_callback(CPXCALLBACKCONTEXTptr context, CPXLONG conte
 */
 }
 
+static void get_initial_sol(tsp_instance_t* instance, double* xheur) {
+	if (tsp_opt(instance)) { free_tsp_instance(instance); print_error("get_initial_sol() optimization algorithm failed", 0); }
+	if (ref_sol(instance)) { free_tsp_instance(instance); print_error("get_initial_sol() refinement algorithm failed", 0); }
+	instance->num_cycles = 1;
+	instance->cycle_delimiter = instance->num_nodes;
+	if (xheur != NULL)
+		for (int i = 0; i < instance->num_nodes; i++) 
+			xheur[xpos(instance->best_sol[i], instance->best_sol[(i + 1) % instance->num_nodes], instance)] = 1.0;
+}
+
 void benders_method(tsp_instance_t* instance, CPXENVptr env, CPXLPptr lp, double** xstar, int* succ, int* comp, bool* visited_nodes, int* num_cycles) {
 	//initialize the incumbent
 	instance->sol_procedure_flag = GREEDY;
@@ -804,8 +842,10 @@ void benders_method(tsp_instance_t* instance, CPXENVptr env, CPXLPptr lp, double
 	instance->prob_ign_opt = 0.0;
 	instance->refine_flag = TWO_OPT;
 	instance->metaheur_flag = NO_MH;
-	if (tsp_opt(instance)) { free_tsp_instance(instance); fprintf(stderr, "Optimization algorithm failed\n"); exit(1); }
-	if (ref_sol(instance)) { free_tsp_instance(instance); fprintf(stderr, "Refinement algorithm failed\n"); exit(1); }
+	int sol_cardinality = (instance->num_nodes) * (instance->num_nodes - 1) / 2;
+	double* xheur = (double*)calloc(sol_cardinality, sizeof(double));  // all zeros, initially
+	if (xheur == NULL) print_error("benders_method() could not allocate memory for xheur[]", 0);
+	get_initial_sol(instance, xheur);
 
 	int error;
 	int iteration = 0;
@@ -819,6 +859,14 @@ void benders_method(tsp_instance_t* instance, CPXENVptr env, CPXLPptr lp, double
 		CPXsetdblparam(env, CPX_PARAM_CUTUP, upper_bound);
 		CPXsetintparam(env, CPX_PARAM_NODELIM, NODE_LIM);
 
+		//report the initial solution to CPLEX
+		int* ind = (int*)malloc(sol_cardinality * sizeof(int));
+		for (int j = 0; j < sol_cardinality; j++) ind[j] = j;
+		int effortlevel = CPX_MIPSTART_NOCHECK;
+		int beg = 0;
+		if (CPXaddmipstarts(env, lp, 1, sol_cardinality, &beg, ind, xheur, &effortlevel, NULL)) print_error("CPXaddmipstarts() error", 0);
+		free(ind);
+
 		//solve the model
 		error = CPXmipopt(env, lp);
 		if (error) print_error("CPXmipopt() error", error);
@@ -831,7 +879,9 @@ void benders_method(tsp_instance_t* instance, CPXENVptr env, CPXLPptr lp, double
 
 		//get the model data structures
 		build_model_ds(instance, *xstar, succ, comp, visited_nodes, num_cycles);
-		printf("---New solution found has %d cycles---\n", *num_cycles);
+#if VERBOSE > 1
+		{ printf("---New solution found has %d cycles---\n", *num_cycles); }
+#endif
 
 		//update the lower bound
 		double temp;
@@ -840,17 +890,21 @@ void benders_method(tsp_instance_t* instance, CPXENVptr env, CPXLPptr lp, double
 		lower_bound = max(lower_bound, temp);
 
 		//patch the solution and update the best_sol
-		add_sec_and_patch_update_tsp_best_sol(instance, env, lp, ncols, succ, comp, *num_cycles, instance->num_nodes, iteration);
+		add_sec_and_patch_update_tsp_best_sol(instance, env, lp, NULL, ncols, succ, comp, *num_cycles, instance->num_nodes, iteration);
 
 		//update the upper bound
 		upper_bound = instance->best_sol_cost;
-		printf("Iteration %d: -Lower bound: %f; -Upper bound: %f; -Percent difference: %f%%\n\n", iteration, lower_bound, upper_bound, ((upper_bound - lower_bound) / upper_bound)*100);
+#if VERBOSE > 1
+		{ printf("Iteration %d: -Lower bound: %f; -Upper bound: %f; -Percent difference: %f%%\n\n", iteration, lower_bound, upper_bound, ((upper_bound - lower_bound) / upper_bound) * 100); }
+#endif
 		
 		double end_time = seconds();
 		instance->time_left -= (end_time - start_time);
 		if (instance->time_left <= 0)
 			printf("Benders' method has exhausted the time...\n");
 	}
+
+	free(xheur);
 }
 
 int TSPopt(tsp_instance_t* instance) {
@@ -919,9 +973,28 @@ int TSPopt(tsp_instance_t* instance) {
 
 	if (instance->cplex_solver_flag == BENDERS) {	//find the optimal feasible solution using benders' method
 		benders_method(instance, env, lp, &xstar, succ, comp, visited_nodes, &num_cycles);
-		error = plot_cycles(instance); if (error) print_error("plot_cycles() error", 0);
+		//error = plot_cycles(instance); if (error) print_error("plot_cycles() error", 0);
 	}
 	else if (instance->cplex_solver_flag == CALLBACK) {	//find the optimal feasible solution using the callback function
+		//get an initial solution
+		instance->sol_procedure_flag = GREEDY;
+		instance->starting_index = -1;
+		instance->prob_ign_opt = 0.0;
+		instance->refine_flag = TWO_OPT;
+		instance->metaheur_flag = NO_MH;
+		int sol_cardinality = (instance->num_nodes) * (instance->num_nodes - 1) / 2;
+		double* xheur = (double*)calloc(sol_cardinality, sizeof(double));  // all zeros, initially
+		if (xheur == NULL) print_error("callback initialization could not allocate memory for xheur[]", 0);
+		get_initial_sol(instance, xheur);
+
+		//report the initial solution to CPLEX
+		int* ind = (int*)malloc(sol_cardinality * sizeof(int));
+		for (int j = 0; j < sol_cardinality; j++) ind[j] = j;
+		int effortlevel = CPX_MIPSTART_NOCHECK;
+		int beg = 0;
+		if (CPXaddmipstarts(env, lp, 1, sol_cardinality, &beg, ind, xheur, &effortlevel, NULL)) print_error("CPXaddmipstarts() error", 0);
+		free(ind);
+
 		CPXLONG contextid = CPX_CALLBACKCONTEXT_CANDIDATE;	//lazyconstraints
 		error = CPXcallbacksetfunc(env, lp, contextid, cplex_callback, instance); if (error) print_error("CPXcallbacksetfunc() error", error);
 		error = CPXmipopt(env, lp); if (error) print_error("CPXmipopt() error", error);	// with the callback installed
@@ -929,7 +1002,8 @@ int TSPopt(tsp_instance_t* instance) {
 		build_model_ds(instance, xstar, succ, comp, visited_nodes, &num_cycles);	//compute the successor list, component list, visited nodes list and number of cycles
 		//print_cycles(instance, succ, comp, num_cycles);	//print the found cycles
 		update_tsp_best_sol(instance, succ, num_cycles, instance->num_nodes);	//save the cycles in the instance best sol 
-		error = plot_cycles(instance); if (error) print_error("plot_cycles() error", 0);	//plot the best sol cycles
+		//error = plot_cycles(instance); if (error) print_error("plot_cycles() error", 0);	//plot the best sol cycles
+		free(xheur);
 	}
 	else
 		print_error("No cplex_solver defined", 0);

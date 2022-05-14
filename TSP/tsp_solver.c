@@ -3,9 +3,9 @@
 #include "tsp_utils.h"
 #include "tsp.h"
 
-#define TOTAL_TIME_LIMIT 300.0
+#define TOTAL_TIME_LIMIT 12000.0
 #define NUM_RERUNS 100
-#define NUM_POINTS 1000
+#define NUM_POINTS 300
 #define POINT_BOUND 1000
 #define RAND_SEED 1
 
@@ -54,6 +54,8 @@ static void cont_search(tsp_instance_t* instance) {
 static void cplex_sol(tsp_instance_t* instance) {
 	//cplex solution
 	if (TSPopt(instance)) { free_tsp_instance(instance); fprintf(stderr, "Optimization algorithm failed\n"); exit(1); }
+	//printf("Solution cost: %f\n", instance->best_sol_cost);
+	if (plot_cycles(instance)) { free_tsp_instance(instance); fprintf(stderr, "Cycles plotting failed\n"); exit(1); }
 }
 
 //chap. 2.3 
@@ -1179,6 +1181,136 @@ static void comp_methods_5() {
 	fclose(perf_prof_file);
 }
 
+//chap. 5.4
+static void comp_methods_6() {
+
+#if VERBOSE > 1
+	{ printf("Comparing Benders' method, Branch and cut (callbacks)...\n"); 
+	  printf("Number of nodes: %d...\nNumber of reruns %d...\n", NUM_POINTS, NUM_RERUNS);
+	  printf("Total time limit: %f...\nTime limit per instance %f...\n", TOTAL_TIME_LIMIT, TOTAL_TIME_LIMIT / NUM_RERUNS); }
+#endif
+
+	FILE* perf_prof_file = fopen(PERF_PROF_FILENAME, "w");
+	if (perf_prof_file == NULL) { fprintf(stderr, "cannot open the perf_prof_file\n"); exit(1); }
+
+	fprintf(perf_prof_file, "2, benders, callback\n");
+
+	srand(RAND_SEED); for (int i = 0; i < MIN_RAND_RUNS + log(1 + RAND_SEED); i++) rand();
+	point_2d_t* nodes = (point_2d_t*)malloc(NUM_POINTS * sizeof(point_2d_t));
+	int num_costs = NUM_POINTS * (NUM_POINTS - 1) / 2;
+	double* costs = (double*)malloc(num_costs * sizeof(double));
+	unsigned int random_seed;
+	for (int i = 0; i < NUM_RERUNS; i++) {
+
+		tsp_instance_t benders;	//benders' method
+		benders.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
+		benders.input_file_name = NULL;
+		benders.x_bound = -1;
+		benders.y_bound = -1;
+		benders.sol_procedure_flag = GREEDY;
+		benders.starting_index = -1;
+		benders.prob_ign_opt = 0.0;
+		benders.refine_flag = TWO_OPT;
+		benders.metaheur_flag = NO_MH;
+		benders.min_tenure = -1;
+		benders.max_tenure = -1;
+		benders.min_temperature = -1;
+		benders.max_temperature = -1;
+		benders.move_weight = 25;
+		benders.pop_size = 100;
+		benders.cplex_solver_flag = BENDERS;
+		benders.best_sol = NULL;
+		benders.best_sol_cost = DBL_INFY;
+		benders.time_left = benders.time_limit;
+		benders.tabu_list = NULL;
+
+		tsp_instance_t bnc;	//Branch and cut
+		bnc.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
+		bnc.input_file_name = NULL;
+		bnc.x_bound = -1;
+		bnc.y_bound = -1;
+		bnc.sol_procedure_flag = GREEDY;
+		bnc.starting_index = -1;
+		bnc.prob_ign_opt = 0.0;
+		bnc.refine_flag = TWO_OPT;
+		bnc.metaheur_flag = NO_MH;
+		bnc.min_tenure = -1;
+		bnc.max_tenure = -1;
+		bnc.min_temperature = -1;
+		bnc.max_temperature = -1;
+		bnc.move_weight = 25;
+		bnc.pop_size = 100;
+		bnc.cplex_solver_flag = CALLBACK;
+		bnc.best_sol = NULL;
+		bnc.best_sol_cost = DBL_INFY;
+		bnc.time_left = bnc.time_limit;
+		bnc.tabu_list = NULL;
+
+		//generating the random nodes
+		for (int i = 0; i < NUM_POINTS; i++) {
+			nodes[i].x_coord = ((double)rand() / RAND_MAX) * POINT_BOUND;
+			nodes[i].y_coord = ((double)rand() / RAND_MAX) * POINT_BOUND;
+		}
+		benders.num_nodes = NUM_POINTS;
+		benders.nodes = nodes;
+		benders.num_cycles = benders.num_nodes;
+		benders.cycle_delimiter = benders.num_nodes;
+		bnc.num_nodes = NUM_POINTS;
+		bnc.nodes = nodes;
+		bnc.num_cycles = bnc.num_nodes;
+		bnc.cycle_delimiter = bnc.num_nodes;
+
+		//precomputing the costs
+		for (int i = 0; i < NUM_POINTS - 1; i++) {
+			for (int j = i + 1; j < NUM_POINTS; j++) {
+				costs[DIST_INDEX(i, j, NUM_POINTS)] = (double)((int)(dist(i, j, &benders) + 0.5));
+			}
+		}
+		benders.costs = costs;
+		bnc.costs = costs;
+
+		//setting-up the random seeds
+		random_seed = rand();
+		benders.random_seed = random_seed;
+		bnc.random_seed = random_seed;
+
+		//finding the best solutions
+		double elapsed_timer_start, elapsed_timer_stop;
+
+		double benders_sol_cost = DBL_INFY;
+		double benders_computation_time = 0;
+		elapsed_timer_start = seconds();
+		if (TSPopt(&benders)) { free_tsp_instance(&benders); fprintf(stderr, "Optimization algorithm failed\n"); exit(1); }
+		elapsed_timer_stop = seconds();
+		benders_sol_cost = benders.best_sol_cost;
+		free(benders.best_sol);
+		benders.best_sol = NULL;
+		benders.best_sol_cost = DBL_INFY;
+		benders_computation_time = (elapsed_timer_stop - elapsed_timer_start);
+
+		double bnc_sol_cost = DBL_INFY;
+		double bnc_computation_time = 0;
+		elapsed_timer_start = seconds();
+		if (TSPopt(&bnc)) { free_tsp_instance(&bnc); fprintf(stderr, "Optimization algorithm failed\n"); exit(1); }
+		elapsed_timer_stop = seconds();
+		bnc_sol_cost = bnc.best_sol_cost;
+		free(bnc.best_sol);
+		bnc.best_sol = NULL;
+		bnc.best_sol_cost = DBL_INFY;
+		bnc_computation_time = (elapsed_timer_stop - elapsed_timer_start);
+
+#if VERBOSE > 1
+		{ printf("Benders' method: cost = %f, time = %fs; Branch and cut: cost = %f, time = %fs\n", benders_sol_cost, benders_computation_time, bnc_sol_cost, bnc_computation_time); }
+#endif
+
+		fprintf(perf_prof_file, "random_seed_%d, %f, %f\n", random_seed, benders_computation_time, bnc_computation_time);
+	}
+	free(nodes);
+	free(costs);
+
+	fclose(perf_prof_file);
+}
+
 int main(int argc, char const* argv[]) {
 
 #if VERBOSE > 0 
@@ -1225,6 +1357,9 @@ int main(int argc, char const* argv[]) {
 
 	////uncomment for perf prof of chap 4.5 fig 2////
 	//comp_methods_5();
+
+	////uncomment for perf prof of chap 4.5 fig 2////
+	//comp_methods_6();
 
 	double end_time = seconds();
 
