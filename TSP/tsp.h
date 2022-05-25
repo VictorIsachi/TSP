@@ -30,6 +30,8 @@
 
 #define BENDERS 1
 #define CALLBACK 2
+#define HARD_FIXING 3
+#define LOCAL_BRANCHING 4
 
 #define MIN_RAND_RUNS 1000
 
@@ -63,6 +65,8 @@ typedef struct tsp_instance {
 	unsigned int move_weight;
 	unsigned int pop_size;
 	unsigned int cplex_solver_flag;
+	double instance_time_limit;
+	double prob_fixing;
 
 	//instance local data
 	unsigned int* best_sol;	//indices of the nodes[] in the tour order, it might be better to put this variable into a critical region to guarantee atomicity

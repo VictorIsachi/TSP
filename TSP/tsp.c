@@ -33,6 +33,8 @@ int parse_command_line(const int argc, const char* argv[], tsp_instance_t* insta
 	instance->move_weight = 25;
 	instance->pop_size = 100;
 	instance->cplex_solver_flag = BENDERS;
+	instance->instance_time_limit = MAX_TIME;
+	instance->prob_fixing = 0.0;
 
 	int help = 0;
 	if (argc < 1) help = 1;
@@ -56,6 +58,8 @@ int parse_command_line(const int argc, const char* argv[], tsp_instance_t* insta
 		if (strcmp(argv[i], "-move_weight") == 0) { instance->move_weight = atoi(argv[++i]); continue; }				// used to determine p. acceptance (simulated annealing)
 		if (strcmp(argv[i], "-pop_size") == 0) { instance->pop_size = atoi(argv[++i]); continue; }						// population size (genetic algorithm)
 		if (strcmp(argv[i], "-cplex_flag") == 0) { instance->cplex_solver_flag = atoi(argv[++i]); continue; }			// flag indicating the cplex solving method
+		if (strcmp(argv[i], "-inst_time_limit") == 0) { instance->instance_time_limit = atof(argv[++i]); continue; }	// time limit of the single instance in the matheuristic methods
+		if (strcmp(argv[i], "-prob_fixing") == 0) { instance->prob_fixing = atof(argv[++i]); continue; }				// prob. to fix a certain edge in the hard fixing matheuristic
 		if (strcmp(argv[i], "-help") == 0) { help = 1; continue; } 													    // help
 		if (strcmp(argv[i], "--help") == 0) { help = 1; continue; } 													// help
 		help = 1;
@@ -89,7 +93,9 @@ int parse_command_line(const int argc, const char* argv[], tsp_instance_t* insta
 		printf("-max_temp %d (the maximum temperature (simulated annealing))\n", instance->max_temperature);
 		printf("-move_weight %d (scaling factor used to determine the probability of acceptance (simulated annealing))\n", instance->move_weight);
 		printf("-pop_size %d (population size (genetic algorithm))\n", instance->pop_size);
-		printf("-cplex_flag %d (1: BENDERS; 2: CALLBACK)\n", instance->cplex_solver_flag);
+		printf("-cplex_flag %d (1: BENDERS; 2: CALLBACK; 3: HARD FIXING; 4: LOCAL BRANCHING)\n", instance->cplex_solver_flag);
+		printf("-inst_time_limit %f\n", instance->instance_time_limit);
+		printf("-prob_fixing %f\n", instance->prob_fixing);
 		printf("\nenter -help or --help for help\n");
 		printf("----------------------------------------------------------------------------------------------\n\n");
 	}
