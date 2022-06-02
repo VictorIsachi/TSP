@@ -44,8 +44,11 @@ You can also specify the following command line arguments:
 -VNS (5-kick) meta-heuristic
 -simulated annealing meta-heuristic
 -genetic algorithm meta-heuristic
+-cycles GNUPLOT plotter
 -Benders' method using CPLEX
 -callback method using CPLEX
+-patching heuristic for the Benders' method
+-patching heuristic for the callback method
 -hard fixing matheuristic
 -local branching matheuristic
 ```
