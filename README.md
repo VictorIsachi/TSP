@@ -29,8 +29,8 @@ You can also specify the following command line arguments:
 
 ## List of implemented features
 ```
--command line parser (partial)
--input file TSPLIB format reader (partial)
+-command line parser
+-input file TSPLIB format reader
 -points GNUPLOT plotter
 -costs (EUC_2D) precomputation (look-up table) function
 -sequential tour method function
