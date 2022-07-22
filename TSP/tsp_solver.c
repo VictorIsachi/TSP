@@ -3,11 +3,13 @@
 #include "tsp_utils.h"
 #include "tsp.h"
 
-#define TOTAL_TIME_LIMIT 12000.0
+#define TOTAL_TIME_LIMIT 2000.0
 #define NUM_RERUNS 100
-#define NUM_POINTS 300
+#define NUM_POINTS 600
 #define POINT_BOUND 1000
 #define RAND_SEED 1
+#define NUM_ITERATIONS 5
+#define PROB_FIXING 0.3
 
 #define PERF_PROF_FILENAME "perf_prof.csv"
 
@@ -1311,6 +1313,180 @@ static void comp_methods_6() {
 	fclose(perf_prof_file);
 }
 
+//chap. 6.3
+static void comp_methods_7() {
+
+#if VERBOSE > 1
+	{ printf("Comparing Branch and cut (callbacks), Hard fixing and Local branching...\n");
+	printf("Number of nodes: %d...\nNumber of reruns %d...\n", NUM_POINTS, NUM_RERUNS);
+	printf("Total time limit: %f...\nTime limit per instance %f...\n", TOTAL_TIME_LIMIT, TOTAL_TIME_LIMIT / NUM_RERUNS); }
+#endif
+
+	FILE* perf_prof_file = fopen(PERF_PROF_FILENAME, "w");
+	if (perf_prof_file == NULL) { fprintf(stderr, "cannot open the perf_prof_file\n"); exit(1); }
+
+	fprintf(perf_prof_file, "3, callback, hard_fixing_prob0.3_iter5, local_branching_iter5\n");
+
+	srand(RAND_SEED); for (int i = 0; i < MIN_RAND_RUNS + log(1 + RAND_SEED); i++) rand();
+	point_2d_t* nodes = (point_2d_t*)malloc(NUM_POINTS * sizeof(point_2d_t));
+	int num_costs = NUM_POINTS * (NUM_POINTS - 1) / 2;
+	double* costs = (double*)malloc(num_costs * sizeof(double));
+	unsigned int random_seed;
+	for (int i = 0; i < NUM_RERUNS; i++) {
+
+		tsp_instance_t bnc;	//Branch and cut
+		bnc.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
+		bnc.input_file_name = NULL;
+		bnc.x_bound = -1;
+		bnc.y_bound = -1;
+		bnc.sol_procedure_flag = GREEDY;
+		bnc.starting_index = -1;
+		bnc.prob_ign_opt = 0.0;
+		bnc.refine_flag = TWO_OPT;
+		bnc.metaheur_flag = NO_MH;
+		bnc.min_tenure = -1;
+		bnc.max_tenure = -1;
+		bnc.min_temperature = -1;
+		bnc.max_temperature = -1;
+		bnc.move_weight = 25;
+		bnc.pop_size = 100;
+		bnc.cplex_solver_flag = CALLBACK;
+		bnc.best_sol = NULL;
+		bnc.best_sol_cost = DBL_INFY;
+		bnc.time_left = bnc.time_limit;
+		bnc.tabu_list = NULL;
+
+		tsp_instance_t hfx;	//Hard fixing
+		hfx.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
+		hfx.input_file_name = NULL;
+		hfx.x_bound = -1;
+		hfx.y_bound = -1;
+		hfx.sol_procedure_flag = GREEDY;
+		hfx.starting_index = -1;
+		hfx.prob_ign_opt = 0.0;
+		hfx.refine_flag = TWO_OPT;
+		hfx.metaheur_flag = NO_MH;
+		hfx.min_tenure = -1;
+		hfx.max_tenure = -1;
+		hfx.min_temperature = -1;
+		hfx.max_temperature = -1;
+		hfx.move_weight = 25;
+		hfx.pop_size = 100;
+		hfx.cplex_solver_flag = HARD_FIXING;
+		hfx.instance_time_limit = hfx.time_limit / NUM_ITERATIONS;
+		hfx.prob_fixing = PROB_FIXING;
+		hfx.best_sol = NULL;
+		hfx.best_sol_cost = DBL_INFY;
+		hfx.time_left = hfx.time_limit;
+		hfx.tabu_list = NULL;
+
+		tsp_instance_t lbr;	//Local branching
+		lbr.time_limit = TOTAL_TIME_LIMIT / NUM_RERUNS;
+		lbr.input_file_name = NULL;
+		lbr.x_bound = -1;
+		lbr.y_bound = -1;
+		lbr.sol_procedure_flag = GREEDY;
+		lbr.starting_index = -1;
+		lbr.prob_ign_opt = 0.0;
+		lbr.refine_flag = TWO_OPT;
+		lbr.metaheur_flag = NO_MH;
+		lbr.min_tenure = -1;
+		lbr.max_tenure = -1;
+		lbr.min_temperature = -1;
+		lbr.max_temperature = -1;
+		lbr.move_weight = 25;
+		lbr.pop_size = 100;
+		lbr.cplex_solver_flag = LOCAL_BRANCHING;
+		lbr.instance_time_limit = lbr.time_limit / NUM_ITERATIONS;
+		lbr.prob_fixing = PROB_FIXING;
+		lbr.best_sol = NULL;
+		lbr.best_sol_cost = DBL_INFY;
+		lbr.time_left = lbr.time_limit;
+		lbr.tabu_list = NULL;
+
+		//generating the random nodes
+		for (int i = 0; i < NUM_POINTS; i++) {
+			nodes[i].x_coord = ((double)rand() / RAND_MAX) * POINT_BOUND;
+			nodes[i].y_coord = ((double)rand() / RAND_MAX) * POINT_BOUND;
+		}
+		bnc.num_nodes = NUM_POINTS;
+		bnc.nodes = nodes;
+		bnc.num_cycles = bnc.num_nodes;
+		bnc.cycle_delimiter = bnc.num_nodes;
+		hfx.num_nodes = NUM_POINTS;
+		hfx.nodes = nodes;
+		hfx.num_cycles = hfx.num_nodes;
+		hfx.cycle_delimiter = hfx.num_nodes;
+		lbr.num_nodes = NUM_POINTS;
+		lbr.nodes = nodes;
+		lbr.num_cycles = lbr.num_nodes;
+		lbr.cycle_delimiter = lbr.num_nodes;
+
+		//precomputing the costs
+		for (int i = 0; i < NUM_POINTS - 1; i++) {
+			for (int j = i + 1; j < NUM_POINTS; j++) {
+				costs[DIST_INDEX(i, j, NUM_POINTS)] = (double)((int)(dist(i, j, &bnc) + 0.5));
+			}
+		}
+		bnc.costs = costs;
+		hfx.costs = costs;
+		lbr.costs = costs;
+
+		//setting-up the random seeds
+		random_seed = rand();
+		bnc.random_seed = random_seed;
+		hfx.random_seed = random_seed;
+		lbr.random_seed = random_seed;
+
+		//finding the best solutions
+		double elapsed_timer_start, elapsed_timer_stop;
+
+		double bnc_sol_cost = DBL_INFY;
+		double bnc_computation_time = 0;
+		elapsed_timer_start = seconds();
+		if (TSPopt(&bnc)) { free_tsp_instance(&bnc); fprintf(stderr, "Optimization algorithm failed\n"); exit(1); }
+		elapsed_timer_stop = seconds();
+		bnc_sol_cost = bnc.best_sol_cost;
+		free(bnc.best_sol);
+		bnc.best_sol = NULL;
+		bnc.best_sol_cost = DBL_INFY;
+		bnc_computation_time = (elapsed_timer_stop - elapsed_timer_start);
+
+		double hfx_sol_cost = DBL_INFY;
+		double hfx_computation_time = 0;
+		elapsed_timer_start = seconds();
+		if (TSPopt(&hfx)) { free_tsp_instance(&hfx); fprintf(stderr, "Optimization algorithm failed\n"); exit(1); }
+		elapsed_timer_stop = seconds();
+		hfx_sol_cost = hfx.best_sol_cost;
+		free(hfx.best_sol);
+		hfx.best_sol = NULL;
+		hfx.best_sol_cost = DBL_INFY;
+		hfx_computation_time = (elapsed_timer_stop - elapsed_timer_start);
+
+		double lbr_sol_cost = DBL_INFY;
+		double lbr_computation_time = 0;
+		elapsed_timer_start = seconds();
+		if (TSPopt(&lbr)) { free_tsp_instance(&lbr); fprintf(stderr, "Optimization algorithm failed\n"); exit(1); }
+		elapsed_timer_stop = seconds();
+		lbr_sol_cost = lbr.best_sol_cost;
+		free(lbr.best_sol);
+		lbr.best_sol = NULL;
+		lbr.best_sol_cost = DBL_INFY;
+		lbr_computation_time = (elapsed_timer_stop - elapsed_timer_start);
+
+#if VERBOSE > 1
+		{ printf("Branch and cut: cost = %f, time = %fs; Hard fixing: cost = %f, time = %fs; Local branching: cost = %f, time = %fs\n", 
+			bnc_sol_cost, bnc_computation_time, hfx_sol_cost, hfx_computation_time, lbr_sol_cost, lbr_computation_time); }
+#endif
+
+		fprintf(perf_prof_file, "random_seed_%d, %f, %f, %f\n", random_seed, bnc_sol_cost, hfx_sol_cost, lbr_sol_cost);
+	}
+	free(nodes);
+	free(costs);
+
+	fclose(perf_prof_file);
+}
+
 int main(int argc, char const* argv[]) {
 
 #if VERBOSE > 0 
@@ -1358,8 +1534,11 @@ int main(int argc, char const* argv[]) {
 	////uncomment for perf prof of chap 4.5 fig 2////
 	//comp_methods_5();
 
-	////uncomment for perf prof of chap 4.5 fig 2////
+	////uncomment for perf prof of chap 5.4////
 	//comp_methods_6();
+
+	////uncomment for perf prof of chap 6.3////
+	//comp_methods_7();
 
 	double end_time = seconds();
 

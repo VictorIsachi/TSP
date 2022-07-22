@@ -10,7 +10,7 @@
 
 #define NODE_LIM (100)
 
-#define FRAC_TIME_FS (0.1)	/*10% of the time is dedicated to obtain the first (heuristic - greedy+vns+2opt) solution*/
+#define FRAC_TIME_FS (0.2)	/*20% of the time is dedicated to obtain the first (heuristic - greedy+vns+2opt) solution*/
 #define DEFAULT_K (10)
 #define MAX_K (50)
 
@@ -729,15 +729,15 @@ int TSPopt(tsp_instance_t* instance) {
 			CPXsetdblparam(env, CPX_PARAM_TILIM, instance->instance_time_limit);
 			error = CPXmipopt(env, lp); if (error) print_error("CPXmipopt() error", error);	// with the callback installed
 			error = CPXgetx(env, lp, xstar, 0, ncols - 1); if (error) print_error("CPXgetx() error", error);	//optimal solution if time limit not reached, a feasible one otherwise
-			//build_model_ds(instance, xstar, succ, comp, visited_nodes, &num_cycles);	//compute the successor list, component list, visited nodes list and number of cycles
+			build_model_ds(instance, xstar, succ, comp, visited_nodes, &num_cycles);	//compute the successor list, component list, visited nodes list and number of cycles
 			//print_cycles(instance, succ, comp, num_cycles);	//print the found cycles
-			//update_tsp_best_sol(instance, succ, num_cycles, instance->num_nodes);	//save the cycles in the instance best sol 
+			update_tsp_best_sol(instance, succ, num_cycles, instance->num_nodes);	//save the cycles in the instance best sol 
 			//error = plot_cycles(instance); if (error) print_error("plot_cycles() error", 0);	//plot the best sol cycles
 
 		}
-		build_model_ds(instance, xstar, succ, comp, visited_nodes, &num_cycles);	//compute the successor list, component list, visited nodes list and number of cycles
+		//build_model_ds(instance, xstar, succ, comp, visited_nodes, &num_cycles);	//compute the successor list, component list, visited nodes list and number of cycles
 		//print_cycles(instance, succ, comp, num_cycles);	//print the found cycles
-		update_tsp_best_sol(instance, succ, num_cycles, instance->num_nodes);	//save the cycles in the instance best sol 
+		//update_tsp_best_sol(instance, succ, num_cycles, instance->num_nodes);	//save the cycles in the instance best sol 
 		//error = plot_cycles(instance); if (error) print_error("plot_cycles() error", 0);	//plot the best sol cycles
 		free(ind);
 	}
@@ -796,9 +796,9 @@ int TSPopt(tsp_instance_t* instance) {
 			CPXsetdblparam(env, CPX_PARAM_TILIM, instance->instance_time_limit);
 			error = CPXmipopt(env, lp); if (error) print_error("CPXmipopt() error", error);	// with the callback installed
 			error = CPXgetx(env, lp, xstar, 0, ncols - 1); if (error) print_error("CPXgetx() error", error);	//optimal solution if time limit not reached, a feasible one otherwise
-			//build_model_ds(instance, xstar, succ, comp, visited_nodes, &num_cycles);	//compute the successor list, component list, visited nodes list and number of cycles
+			build_model_ds(instance, xstar, succ, comp, visited_nodes, &num_cycles);	//compute the successor list, component list, visited nodes list and number of cycles
 			//print_cycles(instance, succ, comp, num_cycles);	//print the found cycles
-			//update_tsp_best_sol(instance, succ, num_cycles, instance->num_nodes);	//save the cycles in the instance best sol 
+			update_tsp_best_sol(instance, succ, num_cycles, instance->num_nodes);	//save the cycles in the instance best sol 
 			//error = plot_cycles(instance); if (error) print_error("plot_cycles() error", 0);	//plot the best sol cycles
 
 			//remove the added constraint
@@ -806,9 +806,9 @@ int TSPopt(tsp_instance_t* instance) {
 			error = CPXdelrows(env, lp, nrows - 1, nrows - 1);
 			if (error) print_error("CPXdelrows()", error);
 		}
-		build_model_ds(instance, xstar, succ, comp, visited_nodes, &num_cycles);	//compute the successor list, component list, visited nodes list and number of cycles
+		//build_model_ds(instance, xstar, succ, comp, visited_nodes, &num_cycles);	//compute the successor list, component list, visited nodes list and number of cycles
 		//print_cycles(instance, succ, comp, num_cycles);	//print the found cycles
-		update_tsp_best_sol(instance, succ, num_cycles, instance->num_nodes);	//save the cycles in the instance best sol 
+		//update_tsp_best_sol(instance, succ, num_cycles, instance->num_nodes);	//save the cycles in the instance best sol 
 		//error = plot_cycles(instance); if (error) print_error("plot_cycles() error", 0);	//plot the best sol cycles
 		free(ind);
 		free(index);
